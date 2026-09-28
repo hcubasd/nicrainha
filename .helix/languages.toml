@@ -1,0 +1,11 @@
+[[language]]
+name = "typescript"
+auto-format = true
+formatter = { command = "biome", args = [
+  "format",
+  "--stdin-file-path",
+  "%{buffer_name}",
+] }
+
+[language-server.yaml-language-server.config.yaml.schemas]
+"https://json.schemastore.org/github-workflow.json" = ".github/workflows/*.yaml"

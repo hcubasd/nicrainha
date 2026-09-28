@@ -1,0 +1,39 @@
+{
+	"name": "nicrainha",
+	"version": "0.0.0",
+	"description": "Perceptually-uniform color palettes and grayscale mappings from the CIE Lab color space.",
+	"keywords": [
+		"color",
+		"palette",
+		"cielab",
+		"perceptual",
+		"color-science",
+		"ansi",
+		"grayscale"
+	],
+	"license": "MIT",
+	"homepage": "https://github.com/hcubasd/nicrainha#readme",
+	"type": "module",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/hcubasd/nicrainha"
+	},
+	"scripts": {
+		"test": "vitest",
+		"build": "tsc --rootDir src --outDir dist"
+	},
+	"engines": {
+		"node": ">=23.0.0 <27"
+	},
+	"files": [
+		"dist"
+	],
+	"devDependencies": {
+		"@tsconfig/node23": "^23.0.6",
+		"@types/node": "^22.20.4",
+		"typescript": "^6.0.3",
+		"vitest": "^4.1.11"
+	}
+}
