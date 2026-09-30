@@ -1,15 +1,14 @@
 {
 	"name": "nicrainha",
 	"version": "0.0.0",
-	"description": "Perceptually-uniform color palettes and grayscale mappings from the CIE Lab color space.",
+	"description": "Perceptually-uniform color palettes and color mapping from the CIE Lab color space.",
 	"keywords": [
 		"color",
 		"palette",
 		"cielab",
 		"perceptual",
 		"color-science",
-		"ansi",
-		"grayscale"
+		"ansi"
 	],
 	"license": "MIT",
 	"homepage": "https://github.com/hcubasd/nicrainha#readme",
