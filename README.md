@@ -8,6 +8,8 @@ on the constant-`L*` plane that fits inside the sRGB gamut. Subsets of that
 polygon are maximally spread color palettes. All public APIs use `RgbColor`
 (`{ r, g, b }` integers in `[0, 255]`) — Lab is internal machinery.
 
+Showcase: https://hcubasd.github.io/nicrainha/
+
 ## Install
 
 ```sh
@@ -156,6 +158,16 @@ tests/
 npm install
 npm test          # vitest
 npm run build     # tsc → dist/
+```
+
+The showcase in `docs/` is a separate Vite project that installs `nicrainha`
+from npm. Pushes that touch `docs/` on the default branch deploy it to GitHub
+Pages.
+
+```sh
+cd docs
+npm install
+npm run dev       # dev server on all interfaces, for use from a container
 ```
 
 ## Releasing
