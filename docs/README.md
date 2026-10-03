@@ -33,8 +33,8 @@ Example: `?speed=0.5&radius=160`
 ## Files
 
 ```
-index.html               page shell: one full-viewport canvas
-styles.css
+index.html               page shell: full-viewport canvas plus the panel's text
+styles.css               layout; the panel's text is centered over the glass
 main.js                  knobs, constants, WebGL setup, sizing, render loop
 noise.js                 permutation table and CPU Perlin noise (range only)
 shaders/fullscreen.vert  one triangle covering the viewport

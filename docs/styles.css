@@ -19,3 +19,19 @@ canvas {
   height: 100%;
   display: block;
 }
+
+/* Content on the glass. The panel is centered on screen (see main.js), so
+   centering in the viewport centers on the panel's flat top, where the glass
+   doesn't refract. */
+.panel {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+}
+
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 1rem;
+  color: #000;
+}
