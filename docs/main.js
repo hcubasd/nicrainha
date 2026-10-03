@@ -26,12 +26,12 @@ const RADIUS = knob("radius", 96);
 const Z_PER_SECOND = 0.1;
 // Panel size in CSS px, shrunk to fit the viewport with this margin.
 const PANEL = { width: 640, height: 400, margin: 24 };
-// Refractive index of the glass (ordinary crown glass).
+// Refractive index of glass.
 const GLASS_IOR = 1.5;
-// Air gap between the glass and the background, as a fraction of the corner
-// radius: D = GAP_RATIO · R. Must stay below the back focal distance ratio
-// 1/(n − 1) − 1/n (4/3 for n = 1.5), past which the edges fold into fringes.
-const GAP_RATIO = 0.5;
+// Air gap between the glass and the background, as a multiple of the corner
+// radius: the back focal distance of the panel's edge, 1/(n − 1) − 1/n
+// (4/3 for glass). The background sits in the edge lens's focal plane.
+const GAP_RATIO = 1 / (GLASS_IOR - 1) - 1 / GLASS_IOR;
 
 // ── WebGL setup ─────────────────────────────────────────────────────────────
 
@@ -59,7 +59,7 @@ gl.useProgram(program);
 gl.bindVertexArray(gl.createVertexArray());
 
 const uniform = Object.fromEntries(
-  ["u_perm", "u_palette", "u_resolution", "u_z", "u_min", "u_range", "u_panel", "u_radius", "u_gap", "u_eta"]
+  ["u_perm", "u_palette", "u_resolution", "u_z", "u_min", "u_range", "u_panel", "u_radius", "u_gap", "u_ior"]
     .map((name) => [name, gl.getUniformLocation(program, name)]),
 );
 
@@ -83,7 +83,7 @@ const palette = generatePalettes(256)[Math.floor(Math.random() * 256)];
 lookupTexture(1, gl.RGBA8, gl.RGBA, new Uint8Array(palette.flatMap(({ r, g, b }) => [r, g, b, 255])));
 gl.uniform1i(uniform.u_palette, 1);
 
-gl.uniform1f(uniform.u_eta, 1 / GLASS_IOR);
+gl.uniform1f(uniform.u_ior, GLASS_IOR);
 
 // ── Sizing: full device resolution, panel fitted to the viewport ────────────
 
