@@ -20,10 +20,9 @@ canvas {
   display: block;
 }
 
-/* Content on the glass. The panel is centered on screen (see main.js), so
-   centering in the viewport centers on the panel's flat top, where the glass
-   doesn't refract. */
-.panel {
+/* The label, centered on screen. main.js sizes the glass pill around it, so
+   the text sits on the pill's flat middle, where the glass doesn't refract. */
+.label {
   position: fixed;
   inset: 0;
   display: grid;

@@ -5,27 +5,30 @@ import fragmentSource from "./shaders/scene.frag?raw";
 import vertexSource from "./shaders/fullscreen.vert?raw";
 
 // ── Knobs ───────────────────────────────────────────────────────────────────
-// URL parameters, e.g. ?speed=0.5&radius=128. See docs/README.md.
+// URL parameters, e.g. ?speed=0.5&radius=72. See docs/README.md.
 
 const params = new URLSearchParams(location.search);
 function knob(name, fallback) {
-  const value = Number(params.get(name) ?? fallback);
+  if (!params.has(name)) return fallback;
+  const value = Number(params.get(name));
   return Number.isFinite(value) && value >= 0 ? value : fallback;
 }
 
 // Animation speed multiplier: 1 = default, 2 = twice as fast, 0 = frozen.
 const SPEED = knob("speed", 1);
-// Corner radius of the glass panel in CSS px. Also sets the glass thickness
-// and the air gap, so it alone controls how strong the glass looks.
-const RADIUS = knob("radius", 96);
+// Radius of the glass pill's ends in CSS px. Also sets the glass thickness and
+// the air gap, so it alone controls how strong the glass looks. Unset: three
+// line heights of the label (LABEL_RADIUS_LINES).
+const RADIUS = knob("radius", null);
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
 // Depth the noise advances per second at speed 1, in lattice units: the
 // pattern turns over roughly every 10 s.
 const Z_PER_SECOND = 0.1;
-// Panel size in CSS px, shrunk to fit the viewport with this margin.
-const PANEL = { width: 640, height: 400, margin: 24 };
+// Default pill radius, in line heights of the label text: 54 px for 16 px
+// text. The pill is twice that tall.
+const LABEL_RADIUS_LINES = 3;
 // Refractive index of glass.
 const GLASS_IOR = 1.5;
 // Air gap between the glass and the background, as a multiple of the corner
@@ -85,26 +88,35 @@ gl.uniform1i(uniform.u_palette, 1);
 
 gl.uniform1f(uniform.u_ior, GLASS_IOR);
 
-// ── Sizing: full device resolution, panel fitted to the viewport ────────────
+// ── Sizing ──────────────────────────────────────────────────────────────────
 
-function resize() {
+// The canvas renders at full device resolution.
+function layoutCanvas() {
   const dpr = window.devicePixelRatio || 1;
   const width = Math.round(canvas.clientWidth * dpr);
   const height = Math.round(canvas.clientHeight * dpr);
-  if (width === canvas.width && height === canvas.height) return;
+  if (width === canvas.width && height === canvas.height) return false;
   canvas.width = width;
   canvas.height = height;
   gl.viewport(0, 0, width, height);
   gl.uniform2f(uniform.u_resolution, width, height);
+  return true;
+}
 
-  const halfWidth = Math.max(0, Math.min(PANEL.width, canvas.clientWidth - 2 * PANEL.margin) / 2);
-  const halfHeight = Math.max(0, Math.min(PANEL.height, canvas.clientHeight - 2 * PANEL.margin) / 2);
-  // A rounded rectangle's corner radius can't exceed half its shorter side.
-  const radius = Math.min(RADIUS, halfWidth, halfHeight);
-  gl.uniform2f(uniform.u_panel, halfWidth * dpr, halfHeight * dpr);
+// The glass is a pill around the label: semicircular ends of radius R, and a
+// flat middle exactly as wide as the text. Both are centered on screen.
+const label = document.getElementById("label");
+
+function layoutGlass() {
+  const dpr = window.devicePixelRatio || 1;
+  const text = label.getBoundingClientRect();
+  const radius = RADIUS ?? LABEL_RADIUS_LINES * text.height;
+  gl.uniform2f(uniform.u_panel, (text.width / 2 + radius) * dpr, radius * dpr);
   gl.uniform1f(uniform.u_radius, radius * dpr);
   gl.uniform1f(uniform.u_gap, GAP_RATIO * radius * dpr);
 }
+
+new ResizeObserver(layoutGlass).observe(label);
 
 // ── Animation: only the noise depth z moves ─────────────────────────────────
 // Noise repeats every 256 lattice units, so wrapping z there is seamless and
@@ -113,7 +125,7 @@ function resize() {
 const start = performance.now();
 
 function frame(now) {
-  resize();
+  if (layoutCanvas()) layoutGlass();
   const z = (((now - start) / 1000) * Z_PER_SECOND * SPEED) % 256;
   const { min, range } = fieldRange(perm, z);
   gl.uniform1f(uniform.u_z, z);

@@ -1,13 +1,13 @@
 # nicrainha showcase
 
-An animated, full-screen nicrainha background seen through a floating glass
-panel. The glass is a physical model — rays traced through an exact surface
-with Snell's law — not a styling effect, and it puts no color on screen that
-nicrainha didn't produce.
+An animated, full-screen nicrainha background with a glass label —
+`npm i nicrainha` in a floating glass pill. The glass is a physical model —
+rays traced through an exact surface with Snell's law — not a styling effect,
+and it puts no color on screen that nicrainha didn't produce.
 
 Live: https://hcubasd.github.io/nicrainha/
 
-This document is also the reference for reproducing the panel in other WebGL
+This document is also the reference for reproducing the glass in other WebGL
 UIs: everything the look depends on is derived below.
 
 ## Running
@@ -29,17 +29,32 @@ default.
 
 | Parameter | Default | Meaning |
 | --- | --- | --- |
-| `radius` | `96` | Panel corner radius, CSS px. The only free parameter of the glass: it sets the edge curvature, the thickness and the air gap together. Capped at half the panel's shorter side (a pill); `0` makes the glass invisible. |
+| `radius` | three line heights (`54` for 16 px text) | Radius of the pill's ends, CSS px. The only free parameter of the glass: it sets the edge curvature, the thickness and the air gap together. `0` makes the glass invisible. |
 | `speed` | `1` | Animation speed multiplier, for the showcase only. `2` is twice as fast, `0` freezes. At `1` the pattern turns over roughly every 10 s. |
 
-Example: `?radius=160&speed=0.5`
+Example: `?radius=72&speed=0.5`
+
+## The default look: a glass label
+
+The glass is sized by its content rather than placed as a free-standing
+panel. The label `npm i nicrainha` — black, system monospace, the default
+16 px — is centered on screen, and the glass is a pill around it:
+
+- the ends are semicircles of radius `R`, so the pill is `2R` tall;
+- the flat middle is exactly as wide as the text, so the text sits on the
+  part of the glass that doesn't refract, and the curved ends frame it;
+- `R` defaults to three line heights of the text: 54 px, a 108 px tall pill
+  whose ends are wide enough for the glass to read clearly.
+
+`main.js` measures the label and lays out the glass whenever the label or the
+window changes size, so the pill follows the actual font and text.
 
 ## Files
 
 ```
-index.html               page shell: full-viewport canvas plus the panel's text
-styles.css               layout; the panel's text is centered over the glass
-main.js                  knobs, constants, WebGL setup, sizing, render loop
+index.html               page shell: full-viewport canvas plus the label
+styles.css               layout; the label is centered on screen
+main.js                  knobs, constants, WebGL setup, glass sizing, render loop
 noise.js                 permutation table, CPU Perlin noise, exact field range
 shaders/fullscreen.vert  one triangle covering the viewport
 shaders/scene.frag       background, glass tracing and palette lookup
@@ -50,7 +65,7 @@ shaders/scene.frag       background, glass tracing and palette lookup
 The fragment shader runs once per device pixel, every frame, at full
 resolution, with nothing cached or interpolated between frames:
 
-1. **Glass.** If the pixel is over the panel, trace its view ray through the
+1. **Glass.** If the pixel is over the glass, trace its view ray through the
    glass to the point of the scene it shows (below). Otherwise use the pixel
    itself.
 2. **Background.** Evaluate 3D Perlin noise at that point. `x, y` place it in
@@ -85,9 +100,10 @@ the palette on screen.
 
 ### Geometry
 
-Coordinates: `x, y` in device px from the panel center, `z` up toward the
-viewer. The background is the plane `z = 0`. The panel is a rounded rectangle
-of half-size `(W, H)` and corner radius `R`.
+Coordinates: `x, y` in device px from the glass's center, `z` up toward the
+viewer. The background is the plane `z = 0`. The glass's footprint is a
+rounded rectangle of half-size `(W, H)` and corner radius `R`. The engine
+handles any such shape; the label is the case `H = R`, a pill.
 
 The glass is a solid with a flat bottom at height `D` (the air gap) and a top
 made of every point at distance `R` from an **inner rectangle** of half-size
@@ -105,6 +121,11 @@ N = (o, h) / R                                 outward normal of the top
   radius `R`.
 - At a corner both are nonzero: an eighth-sphere of radius `R`.
 - The footprint `s < R` is exactly the rounded rectangle.
+
+For the pill, `H = R`: the inner rectangle shrinks to a horizontal line
+segment, the body along it is a half-cylinder, and each end is a
+quarter-sphere — together, the top half of a capsule (a rod with rounded
+ends) cut lengthwise.
 
 The solid is convex, which the tracer relies on.
 
@@ -143,17 +164,16 @@ continue from wherever it was.
 
 For almost every pixel the path is the simple one: in through the top, out
 through the flat bottom, across the gap. The sideways shift points toward the
-panel's center, so the background is seen from further inside than the pixel.
-The flat top shifts nothing; the panel shows only through its edges.
+glass's center, so the background is seen from further inside than the pixel.
+The flat top shifts nothing; the glass shows only through its edges.
 
 ### The rim
 
 Toward the outer edge the surface steepens, and the rays leave the bottom
 ever closer to sideways, so they travel ever further across the gap. Close
-enough to the rim they cross the whole window and show its wall — at a
-1280×720 window with the default panel, the outer 1–2% of the edge band. In
-the outermost ~0.7% they can't leave the bottom at all (total internal
-reflection); they bounce, leave upward, and also end on the wall. The
+enough to the rim they cross the whole window and show its wall. In the
+outermost ~0.7% of the edge band they can't leave the bottom at all (total
+internal reflection); they bounce, leave upward, and also end on the wall. The
 rim therefore shows thin bands of the window's edge colors. It is
 stair-stepped because each pixel is one point sample; smoothing it would mean
 blending colors.
@@ -201,25 +221,25 @@ The model has no absolute scale: multiplying `R` and `D` together scales
 every ray path and changes nothing else. With the gap tied to `R`, the glass
 depends only on `n`, a physical constant, and `R`:
 
-- The **corner radius is the only free parameter.** Panel width and height
-  only size the flat middle.
-- The same radius looks the same at any panel size. A larger radius is the
-  same glass, scaled.
-- The gap follows the radius when the viewport shrinks the panel and the
-  radius is capped at half the shorter side.
+- The **radius is the only free parameter.** The rest of the shape only sizes
+  the flat middle — for the label, the text's width.
+- The same radius looks the same on any shape. A larger radius is the same
+  glass, scaled.
 - `R = 0` gives `D = 0` and a flat sheet that bends nothing: invisible glass.
 
 What the scaling doesn't change is the background: its blobs are a few hundred
-pixels across at any radius, so a larger panel bends a larger share of one.
+pixels across at any radius, so larger glass bends a larger share of one.
 
-## Reproducing the panel in another UI
+## Reproducing the glass in another UI
 
 1. Draw the background procedurally, so it can be evaluated at any point,
    and color it by palette lookup.
 2. Per pixel, trace the view ray as above and evaluate the background where it
    lands. `scene.frag` is self-contained; `backgroundAt` is the only function
    to swap for a different background.
-3. Keep `n = 1.5` and `D = (1/(n − 1) − 1/n) · R`. Choose `R` per panel, at
-   most half the panel's shorter side.
+3. Keep `n = 1.5` and `D = (1/(n − 1) − 1/n) · R`. For a label, make the
+   glass a pill around the content: radius `R`, height `2R`, flat middle as
+   wide as the content, with `R` three line heights of the text by default.
+   Any rounded rectangle works too, with `R` at most half its shorter side.
 4. Keep colors exact: move the *sample position*, never filter, blend or
    antialias rendered colors.
