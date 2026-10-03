@@ -40,7 +40,7 @@ Example: `?radius=160&speed=0.5`
 index.html               page shell: full-viewport canvas plus the panel's text
 styles.css               layout; the panel's text is centered over the glass
 main.js                  knobs, constants, WebGL setup, sizing, render loop
-noise.js                 permutation table and CPU Perlin noise (range only)
+noise.js                 permutation table, CPU Perlin noise, exact field range
 shaders/fullscreen.vert  one triangle covering the viewport
 shaders/scene.frag       background, glass tracing and palette lookup
 ```
@@ -60,10 +60,17 @@ resolution, with nothing cached or interpolated between frames:
    the 256 palette colors.
 
 The palette is `generatePalettes(256)[r]` for a random rotation `r`, at
-nicrainha's default lightness, uploaded once as a 256×1 texture. The frame's
-range comes from `noise.js` sampling the same noise on a 64×32 grid on the
-CPU. The noise repeats every 256 lattice units, so `z` wraps there without
-changing any value.
+nicrainha's default lightness, uploaded once as a 256×1 texture. The noise
+repeats every 256 lattice units, so `z` wraps there without changing any
+value.
+
+The frame's range is the field's exact minimum and maximum over the whole 2:1
+field, computed on the CPU by `noise.js` (about 0.15 ms per frame): a 65×33
+grid locates every local extremum, and each is followed to its true peak or
+valley by a compass search with halving steps, down to 10⁻⁷ lattice units,
+kept inside the field. Sampling alone would not do: a 64×32 grid misses the
+extremes by up to 11 palette steps, flattening the brightest and darkest
+spots.
 
 ### Color
 

@@ -15,7 +15,7 @@ uniform usampler2D u_perm;   // 256×1 noise permutation table (noise.js)
 uniform sampler2D u_palette; // 256×1 nicrainha palette, one 256-gon rotation
 uniform vec2 u_resolution;   // canvas size in device px
 uniform float u_z;           // noise depth: the animation time
-uniform float u_min;         // this frame's noise range (noise.js)
+uniform float u_min;         // this frame's exact noise range (noise.js)
 uniform float u_range;
 uniform vec2 u_panel;        // panel half-size in device px
 uniform float u_radius;      // corner radius R in device px
@@ -183,6 +183,8 @@ vec2 seenPoint(vec2 pixel) {
 void main() {
   vec2 pixel = vec2(gl_FragCoord.x, u_resolution.y - gl_FragCoord.y);
   float value = backgroundAt(seenPoint(pixel));
+  // u_min and u_range are the field's exact extremes, so t is already in
+  // [0, 1]; the clamp only absorbs float32 rounding.
   float t = clamp((value - u_min) / u_range, 0.0, 1.0);
   outColor = texelFetch(u_palette, ivec2(int(floor(t * 255.0 + 0.5)), 0), 0);
 }

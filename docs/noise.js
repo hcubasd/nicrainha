@@ -49,17 +49,58 @@ export function perlin3(perm, x, y, z) {
   );
 }
 
-// Min and range of the 2:1 background field (x in [0,2), y in [0,1)) at
-// depth z, sampled on a 64×32 grid. The shader stretches this range over the
-// whole palette, as miniature-waffle's static version did per image.
+// Exact min and range of the 2:1 background field (x in [0,2], y in [0,1])
+// at depth z. The shader stretches this range over the whole palette, as
+// miniature-waffle's static version did per image.
+//
+// A coarse grid locates every local extremum; each is then followed to its
+// true peak or valley by a compass search with halving steps, kept inside the
+// field. The result is the continuous field's own min and max, not a sample.
+const CELLS = 32;  // grid points per lattice unit
+
 export function fieldRange(perm, z) {
+  const cols = 2 * CELLS + 1, rows = CELLS + 1;
+  const grid = new Float64Array(cols * rows);
+  for (let j = 0; j < rows; j++) {
+    for (let i = 0; i < cols; i++) grid[j * cols + i] = perlin3(perm, i / CELLS, j / CELLS, z);
+  }
+
   let min = Infinity, max = -Infinity;
-  for (let j = 0; j < 32; j++) {
-    for (let i = 0; i < 64; i++) {
-      const v = perlin3(perm, i / 32, j / 32, z);
-      if (v < min) min = v;
-      if (v > max) max = v;
+  for (let j = 0; j < rows; j++) {
+    for (let i = 0; i < cols; i++) {
+      const v = grid[j * cols + i];
+      let isMax = true, isMin = true;
+      for (let dj = -1; dj <= 1; dj++) {
+        for (let di = -1; di <= 1; di++) {
+          const ni = i + di, nj = j + dj;
+          if ((di || dj) && ni >= 0 && ni < cols && nj >= 0 && nj < rows) {
+            const w = grid[nj * cols + ni];
+            if (w > v) isMax = false;
+            if (w < v) isMin = false;
+          }
+        }
+      }
+      if (isMax) max = Math.max(max, climb(perm, z, i / CELLS, j / CELLS, 1));
+      if (isMin) min = Math.min(min, -climb(perm, z, i / CELLS, j / CELLS, -1));
     }
   }
   return { min, range: max - min || 1 };
+}
+
+// Highest value of sign · noise reachable uphill from (x, y) within the field.
+function climb(perm, z, x, y, sign) {
+  const f = (px, py) => sign * perlin3(perm, px, py, z);
+  const clampX = (v) => Math.min(Math.max(v, 0), 2);
+  const clampY = (v) => Math.min(Math.max(v, 0), 1);
+  let best = f(x, y);
+  for (let step = 1 / CELLS; step > 1e-7; ) {
+    let moved = false;
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nx = clampX(x + dx * step), ny = clampY(y + dy * step);
+      const v = f(nx, ny);
+      if (v > best) { best = v; x = nx; y = ny; moved = true; }
+    }
+    if (!moved) step /= 2;
+  }
+  return best;
 }
