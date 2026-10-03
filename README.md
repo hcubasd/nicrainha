@@ -162,7 +162,7 @@ npm run build     # tsc → dist/
 
 The showcase in `docs/` is a separate Vite project that installs `nicrainha`
 from npm. Pushes that touch `docs/` on the default branch deploy it to GitHub
-Pages.
+Pages. `docs/README.md` documents its rendering and glass model.
 
 ```sh
 cd docs
