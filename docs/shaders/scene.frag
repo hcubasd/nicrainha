@@ -2,8 +2,8 @@
 // The nicrainha background seen through a floating glass panel.
 //
 // Runs once per device pixel, every frame, at full resolution:
-//   1. trace the pixel's view ray back through the glass to the background,
-//   2. evaluate the background noise where the ray lands,
+//   1. trace the pixel's view ray back through the glass into the scene,
+//   2. evaluate the background noise at the point it meets,
 //   3. look the value up in the nicrainha palette.
 // See docs/README.md for the model and its derivations.
 
@@ -58,23 +58,47 @@ float perlin3(vec3 p) {
     w);
 }
 
-// Noise value at a point of the background plane (device px, y down). The
-// viewport shows a centered 2:1 field, x in [0,2) and y in [0,1), with its
-// long axis along the screen's long axis.
+// Noise value at a point of the background (device px, y down, inside the
+// window). The window shows a centered 2:1 field, x in [0,2) and y in [0,1),
+// with its long axis along the screen's long axis.
 float backgroundAt(vec2 point) {
   bool portrait = u_resolution.y > u_resolution.x;
   vec2 screen = portrait ? u_resolution.yx : u_resolution;
   vec2 pos = portrait ? point.yx : point;
   float H = max(screen.y, screen.x / 2.0);
   vec2 field = (pos + (vec2(2.0 * H, H) - screen) / 2.0) / H;
-  // The noise repeats every 256 lattice units, so wrapping is exact; it keeps
-  // far-away landing points within integer range.
-  return perlin3(vec3(mod(field, 256.0), u_z));
+  return perlin3(vec3(field, u_z));
+}
+
+// ── Scene ───────────────────────────────────────────────────────────────────
+// The window is a box: the background is its floor, and beyond the window's
+// edge each edge pixel continues straight up as a wall. Coordinates are
+// device px with y down, z up toward the viewer; the floor is z = 0.
+
+// Centers of the window's outermost pixels.
+vec2 windowMin() { return vec2(0.5); }
+vec2 windowMax() { return u_resolution - 0.5; }
+
+// Where a ray starting at `pos` (inside the window) with direction `dir`
+// meets the box: the floor if it lands inside the window, otherwise the wall
+// its horizontal path crosses first.
+vec2 hitBox(vec3 pos, vec3 dir) {
+  if (dir.z < 0.0) {
+    vec2 landing = pos.xy + dir.xy * (pos.z / -dir.z);
+    if (all(greaterThanEqual(landing, windowMin())) && all(lessThanEqual(landing, windowMax()))) {
+      return landing;
+    }
+  }
+  vec2 toWall = vec2(
+    dir.x > 0.0 ? (windowMax().x - pos.x) / dir.x : dir.x < 0.0 ? (windowMin().x - pos.x) / dir.x : 1e30,
+    dir.y > 0.0 ? (windowMax().y - pos.y) / dir.y : dir.y < 0.0 ? (windowMin().y - pos.y) / dir.y : 1e30);
+  float t = min(toWall.x, toWall.y);
+  if (t >= 1e30) return clamp(pos.xy, windowMin(), windowMax());  // straight up
+  return clamp(pos.xy + t * dir.xy, windowMin(), windowMax());
 }
 
 // ── Glass ───────────────────────────────────────────────────────────────────
-// Coordinates: x, y in device px from the panel center (y down), z up toward
-// the viewer. The background is the plane z = 0. The glass is a solid whose
+// Positions here are relative to the panel center. The glass is a solid whose
 // flat bottom is at z = D and whose top is every point at distance R from an
 // inner rectangle (half-size panel − R) lying at z = D: flat in the middle,
 // quarter-cylinders along the edges, eighth-spheres at the corners.
@@ -101,10 +125,15 @@ vec3 glassNormal(vec3 p) {
   return normalize(vec3(offsetFromInner(p.xy), p.z - u_gap));
 }
 
+// Iteration limits of the tracer. Rays grazing the rim need many small steps
+// and several reflections; at these limits none runs out in practice.
+const int MAX_STEPS = 512;
+const int MAX_BOUNCES = 64;
+
 // Distance along `dir` from `origin`, inside the glass, to its surface.
 float distanceToSurface(vec3 origin, vec3 dir) {
   float t = 1e-2;
-  for (int i = 0; i < 128; i++) {
+  for (int i = 0; i < MAX_STEPS; i++) {
     float d = -glassDistance(origin + t * dir);
     if (d < 1e-3) break;
     t += max(d, 1e-3);
@@ -112,64 +141,48 @@ float distanceToSurface(vec3 origin, vec3 dir) {
   return t;
 }
 
-// Follows a ray that has just entered the glass at `pos` heading `dir`.
-// Inside, it refracts out where Snell's law allows and reflects (total
-// internal reflection) where it doesn't. Returns true and the background
-// point when the ray leaves downward; false when it leaves upward, away from
-// the only light source in the scene. The glass is convex, so a ray that has
-// left never comes back.
-bool traceGlass(vec3 pos, vec3 dir, out vec2 landing) {
-  for (int bounce = 0; bounce < 16; bounce++) {
+// Follows a ray that has just entered the glass at `pos` heading `dir`, and
+// returns where and in which direction it leaves. Inside, it refracts out
+// where Snell's law allows and reflects (total internal reflection) where it
+// doesn't. The glass is convex, so a ray that has left never comes back.
+void traceGlass(inout vec3 pos, inout vec3 dir) {
+  for (int bounce = 0; bounce < MAX_BOUNCES; bounce++) {
     pos += distanceToSurface(pos, dir) * dir;
     vec3 normal = glassNormal(pos);
     vec3 exitDir = refract(dir, -normal, u_ior);  // glass → air
-    if (exitDir == vec3(0.0)) {
-      dir = reflect(dir, normal);
-      continue;
+    if (exitDir != vec3(0.0)) {
+      dir = exitDir;
+      return;
     }
-    if (exitDir.z >= 0.0) return false;
-    landing = pos.xy + exitDir.xy * (pos.z / -exitDir.z);
-    return true;
+    dir = reflect(dir, normal);
   }
-  return false;
 }
 
-// What the viewer sees at `pixel`: the background value, or false for a ray
-// that never reaches the background.
-bool viewThroughGlass(vec2 pixel, out float value) {
+// The point of the scene the viewer sees at `pixel`.
+vec2 seenPoint(vec2 pixel) {
   vec2 center = u_resolution / 2.0;
   vec2 xy = pixel - center;
   vec2 offset = offsetFromInner(xy);
   float s = length(offset);
-  if (s >= u_radius) {  // not over the glass
-    value = backgroundAt(pixel);
-    return true;
-  }
+  if (s >= u_radius) return pixel;  // not over the glass
 
   // The view ray comes straight down and refracts into the top surface.
   float h = sqrt(u_radius * u_radius - s * s);
-  vec3 entry = vec3(xy, u_gap + h);
+  vec3 pos = vec3(xy, u_gap + h);
   vec3 normal = vec3(offset, h) / u_radius;
   vec3 dir = refract(vec3(0.0, 0.0, -1.0), normal, 1.0 / u_ior);  // air → glass
 
-  vec2 landing;
-  if (!traceGlass(entry, dir, landing)) return false;
-  value = backgroundAt(landing + center);
-  return true;
+  traceGlass(pos, dir);
+  return hitBox(pos + vec3(center, 0.0), dir);
 }
 
 // ── Color ───────────────────────────────────────────────────────────────────
 // The glass only changes where the background is sampled. The color is a
-// direct palette lookup, so every pixel is a nicrainha palette color — or
-// black, on the gray axis, where no background light arrives.
+// direct palette lookup, so every pixel is exactly a nicrainha palette color.
 
 void main() {
   vec2 pixel = vec2(gl_FragCoord.x, u_resolution.y - gl_FragCoord.y);
-  float value;
-  if (!viewThroughGlass(pixel, value)) {
-    outColor = vec4(0.0, 0.0, 0.0, 1.0);
-    return;
-  }
+  float value = backgroundAt(seenPoint(pixel));
   float t = clamp((value - u_min) / u_range, 0.0, 1.0);
   outColor = texelFetch(u_palette, ivec2(int(floor(t * 255.0 + 0.5)), 0), 0);
 }

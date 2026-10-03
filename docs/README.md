@@ -51,7 +51,7 @@ The fragment shader runs once per device pixel, every frame, at full
 resolution, with nothing cached or interpolated between frames:
 
 1. **Glass.** If the pixel is over the panel, trace its view ray through the
-   glass to the background point it shows (below). Otherwise use the pixel
+   glass to the point of the scene it shows (below). Otherwise use the pixel
    itself.
 2. **Background.** Evaluate 3D Perlin noise at that point. `x, y` place it in
    a centered 2:1 field covering the viewport, long axis along the screen's
@@ -62,18 +62,17 @@ resolution, with nothing cached or interpolated between frames:
 The palette is `generatePalettes(256)[r]` for a random rotation `r`, at
 nicrainha's default lightness, uploaded once as a 256×1 texture. The frame's
 range comes from `noise.js` sampling the same noise on a 64×32 grid on the
-CPU. The noise repeats every 256 lattice units, so `z` wraps there and far
-landing points are wrapped too, both without changing any value.
+CPU. The noise repeats every 256 lattice units, so `z` wraps there without
+changing any value.
 
 ### Color
 
-Every pixel is exactly one of the 256 palette colors, or black where no
-background light arrives (see the rim, below). The glass only changes *where*
-the background is sampled, never how a color is computed, and the lookup is a
-`texelFetch` from a nearest-filtered texture. There is deliberately no
-blending, blur, tint, Fresnel reflection, dispersion or antialiasing: each
-would put colors outside the palette on screen. Black, like the panel's text,
-lies on the gray axis that every nicrainha color is equally far from.
+Every pixel is exactly one of the 256 palette colors. The glass only changes
+*where* the background is sampled — always a point inside the window — never
+how a color is computed, and the lookup is a `texelFetch` from a
+nearest-filtered texture. There is deliberately no blending, blur, tint,
+Fresnel reflection, dispersion or antialiasing: each would put colors outside
+the palette on screen.
 
 ## Glass model
 
@@ -102,11 +101,19 @@ N = (o, h) / R                                 outward normal of the top
 
 The solid is convex, which the tracer relies on.
 
+### The scene: the window is a box
+
+Only the window's background exists, so the scene is a box: the background
+is its floor, and beyond the window's edge each edge pixel continues straight
+up as a wall. Every ray that leaves the glass meets this box somewhere, so
+every pixel has a color, and that color always comes from a pixel of the
+window — its interior, or its very edge.
+
 ### Tracing a pixel
 
 The viewer looks straight down (orthographic), so a pixel's view ray is
 `(0, 0, −1)`. Light paths are reversible: following the view ray backwards
-finds the background point whose light reaches the pixel.
+finds the point of the scene whose light reaches the pixel.
 
 1. **Enter.** Refract into the top surface at `(p, D + h)`:
    `refract((0, 0, −1), N, 1/n)`. Entering glass a ray is never totally
@@ -115,15 +122,17 @@ finds the background point whose light reaches the pixel.
    signed distance, `max(distance to the top, distance to the bottom)`.
 3. **Leave or reflect.** Refract out, `refract(dir, −normal, n)`. If Snell's
    law has no solution (total internal reflection), reflect and repeat 2.
-4. **Land.** A ray that leaves downward crosses the gap in a straight line and
-   lands on `z = 0`. A ray that leaves upward heads away from the scene's only
-   light source, the background, so the pixel is black.
+4. **Meet the box.** The ray continues in a straight line. If it lands on the
+   floor inside the window, that's the point. Otherwise — it would land
+   beyond the window, or it left the glass upward — it meets the wall where
+   its horizontal path crosses the window's edge, and shows that edge pixel.
 
-A ray that has left the glass never re-enters, because it is convex. Nothing
-is clamped: however far a ray travels across the gap, it lands where the math
-puts it. The only limits are numerical: the shader gives up after 16
-reflections or 128 marching steps per crossing and treats that ray like one
-leaving upward.
+A ray that has left the glass never re-enters, because it is convex. There is
+no arbitrary clamp: rays land wherever the math puts them, and the window's
+own edge pixels are the only limit. The tracer's iteration limits (512
+marching steps per crossing, 64 reflections) were checked by rendering at
+several sizes and pixel densities: no ray reaches them. One that did would
+continue from wherever it was.
 
 For almost every pixel the path is the simple one: in through the top, out
 through the flat bottom, across the gap. The sideways shift points toward the
@@ -132,12 +141,15 @@ The flat top shifts nothing; the panel shows only through its edges.
 
 ### The rim
 
-Toward the outer edge the surface steepens, and in the outermost ~0.7% of the
-edge band the rays hit the bottom beyond the critical angle. Traced onward,
-they reflect and end up leaving the glass upward. Those pixels are black: a
-one-pixel hairline around the panel that comes out of the physics rather than
-being drawn. It is stair-stepped because each pixel is one point sample;
-smoothing it would mean blending colors.
+Toward the outer edge the surface steepens, and the rays leave the bottom
+ever closer to sideways, so they travel ever further across the gap. Close
+enough to the rim they cross the whole window and show its wall — at a
+1280×720 window with the default panel, the outer 1–2% of the edge band. In
+the outermost ~0.7% they can't leave the bottom at all (total internal
+reflection); they bounce, leave upward, and also end on the wall. The
+rim therefore shows thin bands of the window's edge colors. It is
+stair-stepped because each pixel is one point sample; smoothing it would mean
+blending colors.
 
 ### The gap: the edge's focal plane
 
