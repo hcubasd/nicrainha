@@ -30,6 +30,7 @@ default.
 | Parameter | Default | Meaning |
 | --- | --- | --- |
 | `radius` | three line heights (`54` for 16 px text) | Radius of the pill's ends, CSS px. The only free parameter of the glass: it sets the edge curvature, the thickness and the air gap together. `0` makes the glass invisible. |
+| `lightness` | `78` | CIE L\* of the glass at its thickest, between the background's (73.9124) and white (100). See [Glass lightness](#glass-lightness). |
 | `speed` | `1` | Animation speed multiplier, for the showcase only. `2` is twice as fast, `0` freezes. At `1` the pattern turns over roughly every 10 s. |
 
 Example: `?radius=72&speed=0.5`
@@ -56,6 +57,8 @@ index.html               page shell: full-viewport canvas plus the label
 styles.css               layout; the label is centered on screen
 main.js                  knobs, constants, WebGL setup, glass sizing, render loop
 noise.js                 permutation table, CPU Perlin noise, exact field range
+lightness-rings.js       build-time palette table (a Vite plugin)
+vite.config.js           registers that plugin
 shaders/fullscreen.vert  one triangle covering the viewport
 shaders/scene.frag       background, glass tracing and palette lookup
 ```
@@ -71,13 +74,14 @@ resolution, with nothing cached or interpolated between frames:
 2. **Background.** Evaluate 3D Perlin noise at that point. `x, y` place it in
    a centered 2:1 field covering the viewport, long axis along the screen's
    long axis; `z` is time.
-3. **Color.** Normalize the value with this frame's range and look up one of
-   the 256 palette colors.
+3. **Color.** Normalize the value with this frame's range to pick one of the
+   256 palette colors, then lift its lightness by the glass height above the
+   pixel (zero off the glass).
 
-The palette is `generatePalettes(256)[r]` for a random rotation `r`, at
-nicrainha's default lightness, uploaded once as a 256×1 texture. The noise
-repeats every 256 lattice units, so `z` wraps there without changing any
-value.
+The palette is nicrainha's 256-gon in a random rotation `r`: rotation `r`
+starts at vertex `r`, so it is an index offset. The background uses it at
+nicrainha's default lightness. The noise repeats every 256 lattice units, so
+`z` wraps there without changing any value.
 
 The frame's range is the field's exact minimum and maximum over the whole 2:1
 field, computed on the CPU by `noise.js` (about 0.15 ms per frame): a 65×33
@@ -89,12 +93,14 @@ spots.
 
 ### Color
 
-Every pixel is exactly one of the 256 palette colors. The glass only changes
-*where* the background is sampled — always a point inside the window — never
-how a color is computed, and the lookup is a `texelFetch` from a
+Every pixel is exactly a nicrainha color: off the glass, one of the 256 colors
+at the background's lightness; on it, the same palette index at a lighter
+ring of nicrainha's 256-gon. The glass changes *where* the background is
+sampled — always a point inside the window — and *which lightness* the color
+is taken at, never how a color is computed. Lookups are `texelFetch` from a
 nearest-filtered texture. There is deliberately no blending, blur, tint,
 Fresnel reflection, dispersion or antialiasing: each would put colors outside
-the palette on screen.
+nicrainha's on screen.
 
 ## Glass model
 
@@ -226,9 +232,48 @@ depends only on `n`, a physical constant, and `R`:
 - The same radius looks the same on any shape. A larger radius is the same
   glass, scaled.
 - `R = 0` gives `D = 0` and a flat sheet that bends nothing: invisible glass.
+- Separately from the optics, the [lightness lift](#glass-lightness) adds one
+  more choice, `L_glass`: how light the thickest glass gets. Its default, 78
+  (about 4.1 L\* above the background), is the one value chosen by eye.
 
 What the scaling doesn't change is the background: its blobs are a few hundred
 pixels across at any radius, so larger glass bends a larger share of one.
+
+## Glass lightness
+
+The glass also lightens what it shows, in proportion to how much glass there
+is: at a point where the glass is `h` thick (out of `R`), the color's CIE L\*
+lifts from the background's `L_bg` toward the glass's `L_glass`:
+
+```
+L = L_bg + (L_glass − L_bg) · h / R
+```
+
+L\* is perceptually uniform, so twice the glass is twice the visible lift. The
+color itself never changes, only its lightness: nicrainha's 256-gon has the
+same 256 hue angles at every lightness, so the lifted color is the same palette
+index on a lighter ring. The glass is background-colored at its rim and
+lightest where it is thickest — along the pill's center line, since a pill's
+cross-section is a half-cylinder — so it reads as a solid. Black text gets
+more contrast on it, not less.
+
+**The default, `L_glass = 78`, is chosen by eye**: a lift of **about 4.1 L\*
+points** (78 − 73.9124 = 4.0876) at the thickest glass. That is the amount we
+found looks right: enough to read as a lighter body of glass, little enough
+that the background's hues stay clearly visible through it. Unlike the
+background's lightness and the gap, it is not derived. The only
+non-arbitrary values are the two ends of the range — `L_bg` (no lift) and
+100, where the 256-gon collapses to white — and at 100 the glass's middle
+loses its color entirely. For another background lightness, start from the
+same lift of about 4 points.
+
+The rings are precomputed at build time by `lightness-rings.js`: 128 rows from
+the background's L\* to 100, about 0.2 apart (below what the eye
+distinguishes), each the 256-gon's vertices in vertex order. Computing them
+takes a few hundred milliseconds and depends on nothing that varies per page
+load, so the page receives them as data and only applies the random rotation,
+as an index offset, and the lift, as a row. `?lightness=` picks how far up the
+table the thickest glass reaches.
 
 ## Reproducing the glass in another UI
 
@@ -243,3 +288,7 @@ pixels across at any radius, so larger glass bends a larger share of one.
    Any rounded rectangle works too, with `R` at most half its shorter side.
 4. Keep colors exact: move the *sample position*, never filter, blend or
    antialias rendered colors.
+5. Lift lightness with glass height, `L_bg + (L_glass − L_bg) · h / R`, by
+   looking the same palette index up on a lighter ring of the 256-gon, with
+   `L_glass` about 4 L\* points above `L_bg`. Precompute the rings rather than
+   computing them per load.

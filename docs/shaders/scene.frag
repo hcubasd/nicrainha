@@ -4,7 +4,8 @@
 // Runs once per device pixel, every frame, at full resolution:
 //   1. trace the pixel's view ray back through the glass into the scene,
 //   2. evaluate the background noise at the point it meets,
-//   3. look the value up in the nicrainha palette.
+//   3. look the value up in the nicrainha palette, lifted in lightness by the
+//      height of the glass above the pixel.
 // See docs/README.md for the model and its derivations.
 
 precision highp float;
@@ -12,7 +13,11 @@ precision highp int;
 precision highp usampler2D;
 
 uniform usampler2D u_perm;   // 256×1 noise permutation table (noise.js)
-uniform sampler2D u_palette; // 256×1 nicrainha palette, one 256-gon rotation
+uniform sampler2D u_palette; // nicrainha's 256-gon, 256 vertices × u_rows lightnesses:
+                             // row 0 at the background's, the last row white
+uniform int u_rows;
+uniform int u_rotation;      // palette rotation: index offset into the vertices
+uniform float u_lift;        // fraction of the rows the thickest glass reaches
 uniform vec2 u_resolution;   // canvas size in device px
 uniform float u_z;           // noise depth: the animation time
 uniform float u_min;         // this frame's exact noise range (noise.js)
@@ -158,8 +163,11 @@ void traceGlass(inout vec3 pos, inout vec3 dir) {
   }
 }
 
-// The point of the scene the viewer sees at `pixel`.
-vec2 seenPoint(vec2 pixel) {
+// The point of the scene the viewer sees at `pixel`, and the height of the
+// glass there as a fraction of R: 0 off the glass and at its rim, 1 over its
+// flat top.
+vec2 seenPoint(vec2 pixel, out float height) {
+  height = 0.0;
   vec2 center = u_resolution / 2.0;
   vec2 xy = pixel - center;
   vec2 offset = offsetFromInner(xy);
@@ -168,6 +176,7 @@ vec2 seenPoint(vec2 pixel) {
 
   // The view ray comes straight down and refracts into the top surface.
   float h = sqrt(u_radius * u_radius - s * s);
+  height = h / u_radius;
   vec3 pos = vec3(xy, u_gap + h);
   vec3 normal = vec3(offset, h) / u_radius;
   vec3 dir = refract(vec3(0.0, 0.0, -1.0), normal, 1.0 / u_ior);  // air → glass
@@ -177,14 +186,18 @@ vec2 seenPoint(vec2 pixel) {
 }
 
 // ── Color ───────────────────────────────────────────────────────────────────
-// The glass only changes where the background is sampled. The color is a
-// direct palette lookup, so every pixel is exactly a nicrainha palette color.
+// The background picks the palette index (the hue); the glass height picks
+// the row (the lightness), linearly — L* is perceptually uniform, so twice
+// the glass is twice the lift. Every pixel is exactly a nicrainha color.
 
 void main() {
   vec2 pixel = vec2(gl_FragCoord.x, u_resolution.y - gl_FragCoord.y);
-  float value = backgroundAt(seenPoint(pixel));
+  float height;
+  float value = backgroundAt(seenPoint(pixel, height));
   // u_min and u_range are the field's exact extremes, so t is already in
   // [0, 1]; the clamp only absorbs float32 rounding.
   float t = clamp((value - u_min) / u_range, 0.0, 1.0);
-  outColor = texelFetch(u_palette, ivec2(int(floor(t * 255.0 + 0.5)), 0), 0);
+  int vertex = (int(floor(t * 255.0 + 0.5)) + u_rotation) & 255;
+  int row = int(floor(height * u_lift * float(u_rows - 1) + 0.5));
+  outColor = texelFetch(u_palette, ivec2(vertex, row), 0);
 }

@@ -1,4 +1,4 @@
-import { generatePalettes } from "nicrainha";
+import * as rings from "virtual:lightness-rings";
 
 import { buildPermutation, fieldRange } from "./noise.js";
 import fragmentSource from "./shaders/scene.frag?raw";
@@ -20,6 +20,10 @@ const SPEED = knob("speed", 1);
 // the air gap, so it alone controls how strong the glass looks. Unset: three
 // line heights of the label (LABEL_RADIUS_LINES).
 const RADIUS = knob("radius", null);
+// CIE L* of the glass at its thickest. The background's L* lifts toward it
+// linearly with glass height. Default: 78, chosen by eye — about 4.1 points
+// above the background's 73.9124.
+const GLASS_LIGHTNESS = Math.min(Math.max(knob("lightness", 78), rings.FROM), rings.TO);
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
@@ -62,17 +66,17 @@ gl.useProgram(program);
 gl.bindVertexArray(gl.createVertexArray());
 
 const uniform = Object.fromEntries(
-  ["u_perm", "u_palette", "u_resolution", "u_z", "u_min", "u_range", "u_panel", "u_radius", "u_gap", "u_ior"]
+  ["u_perm", "u_palette", "u_rows", "u_rotation", "u_lift", "u_resolution", "u_z", "u_min", "u_range", "u_panel", "u_radius", "u_gap", "u_ior"]
     .map((name) => [name, gl.getUniformLocation(program, name)]),
 );
 
-// 256×1 lookup texture on the given texture unit.
-function lookupTexture(unit, internalFormat, format, data) {
+// 256-wide lookup texture with `rows` rows on the given texture unit.
+function lookupTexture(unit, internalFormat, format, data, rows = 1) {
   gl.activeTexture(gl.TEXTURE0 + unit);
   gl.bindTexture(gl.TEXTURE_2D, gl.createTexture());
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-  gl.texImage2D(gl.TEXTURE_2D, 0, internalFormat, 256, 1, 0, format, gl.UNSIGNED_BYTE, data);
+  gl.texImage2D(gl.TEXTURE_2D, 0, internalFormat, 256, rows, 0, format, gl.UNSIGNED_BYTE, data);
 }
 
 // ── Scene (seeded once per page load) ───────────────────────────────────────
@@ -81,10 +85,16 @@ const perm = buildPermutation(Math.floor(Math.random() * 99999));
 lookupTexture(0, gl.R8UI, gl.RED_INTEGER, perm);
 gl.uniform1i(uniform.u_perm, 0);
 
-// One random rotation of the 256-gon at nicrainha's default lightness.
-const palette = generatePalettes(256)[Math.floor(Math.random() * 256)];
-lookupTexture(1, gl.RGBA8, gl.RGBA, new Uint8Array(palette.flatMap(({ r, g, b }) => [r, g, b, 255])));
+// nicrainha's 256-gon at every lightness from the background's (row 0) to
+// white (last row), precomputed at build time (lightness-rings.js). A random
+// rotation of the palette is an index offset into these rows.
+const ringData = Uint8Array.from(atob(rings.RGB), (c) => c.charCodeAt(0));
+lookupTexture(1, gl.RGB8, gl.RGB, ringData, rings.ROWS);
 gl.uniform1i(uniform.u_palette, 1);
+gl.uniform1i(uniform.u_rows, rings.ROWS);
+gl.uniform1i(uniform.u_rotation, Math.floor(Math.random() * 256));
+// How far up the table the thickest glass reaches.
+gl.uniform1f(uniform.u_lift, (GLASS_LIGHTNESS - rings.FROM) / (rings.TO - rings.FROM));
 
 gl.uniform1f(uniform.u_ior, GLASS_IOR);
 
