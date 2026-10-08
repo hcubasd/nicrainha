@@ -46,8 +46,7 @@ There are no URL parameters; the page always shows this.
 | Background lightness | L\* 73.9124 | nicrainha's default: where its 256-gon is largest, the most saturated palette |
 | Refractive index | 1.5 | glass |
 | Air gap | `4/3 · R` | the edge lens's back focal distance ([derivation](#the-gap-the-edges-focal-plane)) |
-| Lightness lift | linear in glass height | L\* is perceptually uniform |
-| Lift range | none with no glass, white at the thickest glass the rectangle allows | the two ends of the scale ([details](#glass-lightness)) |
+| Lightness lift | exponential in glass thickness, toward white | each layer of glass closes the same fraction of the remaining way to white ([details](#glass-lightness)) |
 | Beyond the window | the window's own edge pixels | [the window is a box](#the-scene-the-window-is-a-box) |
 | Color range | the field's exact min and max | computed, not sampled |
 
@@ -55,7 +54,8 @@ There are no URL parameters; the page always shows this.
 
 | What | Value |
 | --- | --- |
-| Corner radius | 0.38 of the maximum — the one choice that shapes the glass |
+| Corner radius | 0.38 of the maximum — sets the glass's thickness, gap and lift |
+| Whitening length `ℓ` | 8 rem — glass this thick lifts L\* 63% of the way to white |
 | Glass size | 560 × 320 CSS px, 24 px margin — layout only, it sizes the flat middle |
 | Animation pace | 0.1 noise lattice units per second: the pattern turns over about every 10 s |
 | Noise scale | a 2 × 1 noise field across the window, inherited from miniature-waffle's showcase |
@@ -234,25 +234,40 @@ a background this smooth.
 
 ### Glass lightness
 
-The glass lightens what it shows in proportion to how much glass there is. A
-pixel under glass `h` thick keeps the palette index the background picked
-and takes it at lightness
+The glass lightens what it shows, more where there is more of it. A pixel
+under glass `h` thick keeps the palette index the background picked and takes
+it at lightness
 
 ```
-L = L_bg + (100 − L_bg) · h / R_max
+L = 100 − (100 − L_bg) · e^(−h/ℓ)
 ```
 
-- **Linear in thickness**, because L\* is perceptually uniform: twice the
-  glass is twice the visible lift.
-- **From `L_bg` to 100**, the two ends of the scale: no glass, no lift; the
-  thickest glass the rectangle allows, `R_max`, white.
-- **The same hue, lighter.** nicrainha's 256-gon has the same 256 hue angles
-  at every lightness, so the lifted color is the same palette index on a
-  lighter ring — still exactly a nicrainha color.
+This is the one curve that satisfies all of:
 
-The glass is background-colored at its rim and lightest over its flat
-middle, so it reads as a solid. With the corner at 0.38 the flat middle is
-`0.38 · R_max` thick and lifts L\* by 0.38 × (100 − 73.9124) ≈ 9.9, to about
+- **It depends only on the actual thickness `h`,** like the gap, so the same
+  corner radius gives the same glass on any rectangle.
+- **No glass, no lift:** `L(0) = L_bg`.
+- **It never passes white,** however thick the glass: it only approaches 100.
+- **Each layer of glass closes the same fraction of the remaining way to
+  white** (`dL/dh = (100 − L)/ℓ`) — the Beer–Lambert form, running toward
+  white instead of black.
+
+For thin glass it is linear in thickness, with slope `(100 − L_bg)/ℓ` ≈ 0.2
+L\* per CSS px; L\* is perceptually uniform, so there twice the glass is twice
+the visible lift.
+
+Converting a thickness into a lightness needs one length to measure the
+thickness against: `ℓ`, the thickness that closes 1 − 1/e ≈ 63% of the way to
+white. Nothing in the physics fixes it. The showcase uses **`ℓ = 8 rem`**
+(128 CSS px at the default font size), chosen by eye — it matches the look
+first tuned by eye on the full-size glass — and expressed in rem so the glass
+follows the user's font size along with the text.
+
+**The same hue, lighter.** nicrainha's 256-gon has the same 256 hue angles at
+every lightness, so the lifted color is the same palette index on a lighter
+ring — still exactly a nicrainha color. The glass is background-colored at
+its rim and lightest over its flat middle, so it reads as a solid. At full
+size the flat middle is 60.8 CSS px thick and lifts L\* by about 9.9, to about
 83.8. Black text gets more contrast on it, not less.
 
 The rings are precomputed at build time by `lightness-rings.js`: 128 rows from
@@ -261,24 +276,22 @@ vertex order. Computing them takes a few hundred milliseconds and depends on
 nothing that varies per page load, so the page receives them as data and only
 applies the random rotation, as an index offset, and the lift, as a row.
 
-### The corner radius: the one choice
+### The corner radius
 
-The model has no absolute scale: multiplying `R`, `D` and the rectangle
-together scales every ray path and changes nothing else. With the gap and the
-lift both following from `R`, the glass is set by a single number, the corner
-radius as a fraction of its maximum, `c = R / R_max`:
+The corner radius `R` sets everything about the glass: its thickness (`R`
+over the flat middle), the air gap (`4/3 · R`) and, through the thickness,
+the lift. The same `R` gives the same glass on any rectangle; width and
+height only size the flat middle. `R = 0` is a flat sheet that bends nothing
+and lifts nothing — invisible glass.
 
-- `R = c · R_max`, `D = 4/3 · R`, and the flat middle lifts L\* by
-  `c · (100 − L_bg)`.
-- `c = 0`: square corners, a flat sheet that bends nothing and lifts nothing —
-  invisible glass.
-- `c = 1`: fully rounded, the strongest edges, and white along the thickest
-  line.
-- The same `c` looks the same at any size. A larger rectangle is the same
-  glass, scaled; only the background's blobs, a few hundred pixels across at
-  any size, don't scale with it.
+The showcase sets it as a fraction of the largest a rounded rectangle allows,
+`R = c · R_max` with `c = 0.38`, chosen by eye: 60.8 CSS px at full size.
+On a small window the rectangle shrinks, so `R`, the gap and the lift shrink
+with it.
 
-The showcase uses `c = 0.38`, chosen by eye.
+The refraction alone has no absolute scale — multiplying `R` and `D` together
+scales every ray path and changes nothing else — so the optics look the same
+at any radius. The lift does have a scale, `ℓ`: more glass is lighter glass.
 
 ## Reproducing the glass in another UI
 
@@ -287,11 +300,11 @@ The showcase uses `c = 0.38`, chosen by eye.
 2. Per pixel, trace the view ray as above and evaluate the background where it
    lands. `scene.frag` is self-contained; `backgroundAt` is the only function
    to swap for a different background.
-3. Make the glass a rounded rectangle with corner radius `R = c · R_max`, half
-   its shorter side times `c` (0.38 here), and keep `n = 1.5` and
+3. Make the glass a rounded rectangle with corner radius `R` (here 0.38 of
+   half its shorter side), and keep `n = 1.5` and
    `D = (1/(n − 1) − 1/n) · R`.
-4. Lift lightness with thickness, `L_bg + (100 − L_bg) · h / R_max`, by looking
-   the same palette index up on a lighter ring of the 256-gon. Precompute the
-   rings rather than computing them per load.
+4. Lift lightness with thickness, `L = 100 − (100 − L_bg) · e^(−h/ℓ)` with
+   `ℓ = 8 rem`, by looking the same palette index up on a lighter ring of the
+   256-gon. Precompute the rings rather than computing them per load.
 5. Keep colors exact: move the *sample position* and the *ring*, never
    filter, blend or antialias rendered colors.

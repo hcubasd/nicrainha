@@ -9,9 +9,12 @@ import vertexSource from "./shaders/fullscreen.vert?raw";
 
 // Corner radius of the glass, as a fraction of the largest a rounded
 // rectangle allows (half its shorter side): 0 is square, 1 fully rounded. It
-// sets the glass's thickness, air gap and lightness, so it alone controls the
-// look. Chosen by eye.
+// sets the glass's thickness, and with it the air gap and the lightness.
+// Chosen by eye.
 const CORNER = 0.38;
+// Glass thickness ℓ, in rem, that lifts L* 1 − 1/e (63%) of the way from the
+// background's to white: L = 100 − (100 − L_bg) · e^(−h/ℓ). Chosen by eye.
+const WHITE_LENGTH_REM = 8;
 // Glass size in CSS px, shrunk to fit the viewport with this margin.
 const PANEL = { width: 560, height: 320, margin: 24 };
 // Depth the noise advances per second, in lattice units: the pattern turns
@@ -50,7 +53,7 @@ gl.useProgram(program);
 gl.bindVertexArray(gl.createVertexArray());
 
 const uniform = Object.fromEntries(
-  ["u_perm", "u_palette", "u_rows", "u_rotation", "u_lift", "u_resolution", "u_z", "u_min", "u_range", "u_panel", "u_radius", "u_gap", "u_ior"]
+  ["u_perm", "u_palette", "u_rows", "u_rotation", "u_whiteLength", "u_resolution", "u_z", "u_min", "u_range", "u_panel", "u_radius", "u_gap", "u_ior"]
     .map((name) => [name, gl.getUniformLocation(program, name)]),
 );
 
@@ -97,10 +100,8 @@ function layoutCanvas() {
 }
 
 // The glass is a centered rounded rectangle. Its corner radius R sets the
-// air gap and how far up the lightness table the glass reaches: thickness h
-// lifts L* by (100 − L_bg) · h / R_max, where R_max is the largest corner
-// radius the rectangle allows. A square rectangle has no glass to show; a
-// fully rounded one turns white where it is thickest.
+// thickness of the glass, and with it the air gap and the lightness. A square
+// rectangle has no glass to show.
 function layoutGlass() {
   const dpr = window.devicePixelRatio || 1;
   const halfWidth = Math.max(0, Math.min(PANEL.width, canvas.clientWidth - 2 * PANEL.margin) / 2);
@@ -110,7 +111,8 @@ function layoutGlass() {
   gl.uniform2f(uniform.u_panel, halfWidth * dpr, halfHeight * dpr);
   gl.uniform1f(uniform.u_radius, radius * dpr);
   gl.uniform1f(uniform.u_gap, GAP_RATIO * radius * dpr);
-  gl.uniform1f(uniform.u_lift, CORNER);  // R / R_max of the way up the table
+  const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+  gl.uniform1f(uniform.u_whiteLength, WHITE_LENGTH_REM * rem * dpr);
 }
 
 // ── Animation: only the noise depth z moves ─────────────────────────────────
