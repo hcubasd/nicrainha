@@ -4,35 +4,19 @@ import { buildPermutation, fieldRange } from "./noise.js";
 import fragmentSource from "./shaders/scene.frag?raw";
 import vertexSource from "./shaders/fullscreen.vert?raw";
 
-// ── Knobs ───────────────────────────────────────────────────────────────────
-// URL parameters, e.g. ?speed=0.5&radius=72. See docs/README.md.
-
-const params = new URLSearchParams(location.search);
-function knob(name, fallback) {
-  if (!params.has(name)) return fallback;
-  const value = Number(params.get(name));
-  return Number.isFinite(value) && value >= 0 ? value : fallback;
-}
-
-// Animation speed multiplier: 1 = default, 2 = twice as fast, 0 = frozen.
-const SPEED = knob("speed", 1);
-// Radius of the glass pill's ends in CSS px. Also sets the glass thickness and
-// the air gap, so it alone controls how strong the glass looks. Unset: three
-// line heights of the label (LABEL_RADIUS_LINES).
-const RADIUS = knob("radius", null);
-// CIE L* of the glass at its thickest. The background's L* lifts toward it
-// linearly with glass height. Default: 78, chosen by eye — about 4.1 points
-// above the background's 73.9124.
-const GLASS_LIGHTNESS = Math.min(Math.max(knob("lightness", 78), rings.FROM), rings.TO);
-
 // ── Constants ───────────────────────────────────────────────────────────────
+// See docs/README.md for which of these are derived and which are chosen.
 
-// Depth the noise advances per second at speed 1, in lattice units: the
-// pattern turns over roughly every 10 s.
+// Corner radius of the glass, as a fraction of the largest a rounded
+// rectangle allows (half its shorter side): 0 is square, 1 fully rounded. It
+// sets the glass's thickness, air gap and lightness, so it alone controls the
+// look. Chosen by eye.
+const CORNER = 0.38;
+// Glass size in CSS px, shrunk to fit the viewport with this margin.
+const PANEL = { width: 560, height: 320, margin: 24 };
+// Depth the noise advances per second, in lattice units: the pattern turns
+// over roughly every 10 s.
 const Z_PER_SECOND = 0.1;
-// Default pill radius, in line heights of the label text: 54 px for 16 px
-// text. The pill is twice that tall.
-const LABEL_RADIUS_LINES = 3;
 // Refractive index of glass.
 const GLASS_IOR = 1.5;
 // Air gap between the glass and the background, as a multiple of the corner
@@ -94,7 +78,6 @@ gl.uniform1i(uniform.u_palette, 1);
 gl.uniform1i(uniform.u_rows, rings.ROWS);
 gl.uniform1i(uniform.u_rotation, Math.floor(Math.random() * 256));
 // How far up the table the thickest glass reaches.
-gl.uniform1f(uniform.u_lift, (GLASS_LIGHTNESS - rings.FROM) / (rings.TO - rings.FROM));
 
 gl.uniform1f(uniform.u_ior, GLASS_IOR);
 
@@ -113,20 +96,22 @@ function layoutCanvas() {
   return true;
 }
 
-// The glass is a pill around the label: semicircular ends of radius R, and a
-// flat middle exactly as wide as the text. Both are centered on screen.
-const label = document.getElementById("label");
-
+// The glass is a centered rounded rectangle. Its corner radius R sets the
+// air gap and how far up the lightness table the glass reaches: thickness h
+// lifts L* by (100 − L_bg) · h / R_max, where R_max is the largest corner
+// radius the rectangle allows. A square rectangle has no glass to show; a
+// fully rounded one turns white where it is thickest.
 function layoutGlass() {
   const dpr = window.devicePixelRatio || 1;
-  const text = label.getBoundingClientRect();
-  const radius = RADIUS ?? LABEL_RADIUS_LINES * text.height;
-  gl.uniform2f(uniform.u_panel, (text.width / 2 + radius) * dpr, radius * dpr);
+  const halfWidth = Math.max(0, Math.min(PANEL.width, canvas.clientWidth - 2 * PANEL.margin) / 2);
+  const halfHeight = Math.max(0, Math.min(PANEL.height, canvas.clientHeight - 2 * PANEL.margin) / 2);
+  const maxRadius = Math.min(halfWidth, halfHeight);
+  const radius = CORNER * maxRadius;
+  gl.uniform2f(uniform.u_panel, halfWidth * dpr, halfHeight * dpr);
   gl.uniform1f(uniform.u_radius, radius * dpr);
   gl.uniform1f(uniform.u_gap, GAP_RATIO * radius * dpr);
+  gl.uniform1f(uniform.u_lift, CORNER);  // R / R_max of the way up the table
 }
-
-new ResizeObserver(layoutGlass).observe(label);
 
 // ── Animation: only the noise depth z moves ─────────────────────────────────
 // Noise repeats every 256 lattice units, so wrapping z there is seamless and
@@ -136,7 +121,7 @@ const start = performance.now();
 
 function frame(now) {
   if (layoutCanvas()) layoutGlass();
-  const z = (((now - start) / 1000) * Z_PER_SECOND * SPEED) % 256;
+  const z = (((now - start) / 1000) * Z_PER_SECOND) % 256;
   const { min, range } = fieldRange(perm, z);
   gl.uniform1f(uniform.u_z, z);
   gl.uniform1f(uniform.u_min, min);

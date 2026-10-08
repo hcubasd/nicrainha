@@ -20,8 +20,8 @@ canvas {
   display: block;
 }
 
-/* The label, centered on screen. main.js sizes the glass pill around it, so
-   the text sits on the pill's flat middle, where the glass doesn't refract. */
+/* The text, centered on screen, so it sits on the glass's flat middle (the
+   glass is centered too; see main.js), where the glass doesn't refract. */
 .label {
   position: fixed;
   inset: 0;

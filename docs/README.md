@@ -1,14 +1,15 @@
 # nicrainha showcase
 
-An animated, full-screen nicrainha background with a glass label —
-`npm i nicrainha` in a floating glass pill. The glass is a physical model —
-rays traced through an exact surface with Snell's law — not a styling effect,
-and it puts no color on screen that nicrainha didn't produce.
+An animated, full-screen nicrainha background seen through a floating slab of
+glass, with `npm i nicrainha` on it. The glass is a physical model — rays
+traced through an exact surface with Snell's law — not a styling effect, and
+it puts no color on screen that nicrainha didn't produce.
 
 Live: https://hcubasd.github.io/nicrainha/
 
 This document is also the reference for reproducing the glass in other WebGL
-UIs: everything the look depends on is derived below.
+UIs: everything the look depends on is listed and, where possible, derived
+below.
 
 ## Running
 
@@ -22,40 +23,55 @@ npm run build     # static site → dist/
 from the library. Pushes that touch `docs/` on the default branch build and
 deploy it to GitHub Pages (`.github/workflows/pages.yaml`).
 
-## Knobs
+## The look
 
-URL parameters. Missing, negative or non-numeric values fall back to the
-default.
+- **Background:** 3D Perlin noise filling the window, colored by nicrainha's
+  256-color palette at its default lightness, slowly evolving.
+- **Glass:** a centered rounded rectangle, 560 × 320 CSS px (shrunk to fit
+  smaller windows with a 24 px margin), floating above the background. Its
+  corner radius is **0.38 of the largest the rectangle allows** (half its
+  shorter side: 0.38 × 160 = 60.8 px at full size). Through it the background
+  is refracted at the rounded edges and lightened where the glass is thick.
+- **Text:** `npm i nicrainha`, black, system monospace, the default 16 px,
+  centered on the glass's flat middle, where the glass doesn't refract.
 
-| Parameter | Default | Meaning |
+There are no URL parameters; the page always shows this.
+
+## What is derived and what is chosen
+
+**Derived** — physics, geometry, or nicrainha itself:
+
+| What | Value | Why |
 | --- | --- | --- |
-| `radius` | three line heights (`54` for 16 px text) | Radius of the pill's ends, CSS px. The only free parameter of the glass: it sets the edge curvature, the thickness and the air gap together. `0` makes the glass invisible. |
-| `lightness` | `78` | CIE L\* of the glass at its thickest, between the background's (73.9124) and white (100). See [Glass lightness](#glass-lightness). |
-| `speed` | `1` | Animation speed multiplier, for the showcase only. `2` is twice as fast, `0` freezes. At `1` the pattern turns over roughly every 10 s. |
+| Background lightness | L\* 73.9124 | nicrainha's default: where its 256-gon is largest, the most saturated palette |
+| Refractive index | 1.5 | glass |
+| Air gap | `4/3 · R` | the edge lens's back focal distance ([derivation](#the-gap-the-edges-focal-plane)) |
+| Lightness lift | linear in glass height | L\* is perceptually uniform |
+| Lift range | none with no glass, white at the thickest glass the rectangle allows | the two ends of the scale ([details](#glass-lightness)) |
+| Beyond the window | the window's own edge pixels | [the window is a box](#the-scene-the-window-is-a-box) |
+| Color range | the field's exact min and max | computed, not sampled |
 
-Example: `?radius=72&speed=0.5`
+**Chosen by eye** — design, not physics:
 
-## The default look: a glass label
+| What | Value |
+| --- | --- |
+| Corner radius | 0.38 of the maximum — the one choice that shapes the glass |
+| Glass size | 560 × 320 CSS px, 24 px margin — layout only, it sizes the flat middle |
+| Animation pace | 0.1 noise lattice units per second: the pattern turns over about every 10 s |
+| Noise scale | a 2 × 1 noise field across the window, inherited from miniature-waffle's showcase |
+| Text | black system monospace, 16 px |
 
-The glass is sized by its content rather than placed as a free-standing
-panel. The label `npm i nicrainha` — black, system monospace, the default
-16 px — is centered on screen, and the glass is a pill around it:
-
-- the ends are semicircles of radius `R`, so the pill is `2R` tall;
-- the flat middle is exactly as wide as the text, so the text sits on the
-  part of the glass that doesn't refract, and the curved ends frame it;
-- `R` defaults to three line heights of the text: 54 px, a 108 px tall pill
-  whose ends are wide enough for the glass to read clearly.
-
-`main.js` measures the label and lays out the glass whenever the label or the
-window changes size, so the pill follows the actual font and text.
+**Numerical** — precision, not appearance: 128 lightness rows (0.2 L\* apart,
+below what the eye distinguishes), the tracer's iteration limits and
+sub-pixel tolerances. The noise seed and palette rotation are random per page
+load, on purpose.
 
 ## Files
 
 ```
-index.html               page shell: full-viewport canvas plus the label
-styles.css               layout; the label is centered on screen
-main.js                  knobs, constants, WebGL setup, glass sizing, render loop
+index.html               page shell: full-viewport canvas plus the text
+styles.css               layout; the text is centered on screen
+main.js                  constants, WebGL setup, glass sizing, render loop
 noise.js                 permutation table, CPU Perlin noise, exact field range
 lightness-rings.js       build-time palette table (a Vite plugin)
 vite.config.js           registers that plugin
@@ -75,13 +91,12 @@ resolution, with nothing cached or interpolated between frames:
    a centered 2:1 field covering the viewport, long axis along the screen's
    long axis; `z` is time.
 3. **Color.** Normalize the value with this frame's range to pick one of the
-   256 palette colors, then lift its lightness by the glass height above the
-   pixel (zero off the glass).
+   256 palette colors, then lift its lightness by the glass thickness above
+   the pixel (zero off the glass).
 
 The palette is nicrainha's 256-gon in a random rotation `r`: rotation `r`
-starts at vertex `r`, so it is an index offset. The background uses it at
-nicrainha's default lightness. The noise repeats every 256 lattice units, so
-`z` wraps there without changing any value.
+starts at vertex `r`, so it is an index offset. The noise repeats every 256
+lattice units, so `z` wraps there without changing any value.
 
 The frame's range is the field's exact minimum and maximum over the whole 2:1
 field, computed on the CPU by `noise.js` (about 0.15 ms per frame): a 65×33
@@ -108,8 +123,8 @@ nicrainha's on screen.
 
 Coordinates: `x, y` in device px from the glass's center, `z` up toward the
 viewer. The background is the plane `z = 0`. The glass's footprint is a
-rounded rectangle of half-size `(W, H)` and corner radius `R`. The engine
-handles any such shape; the label is the case `H = R`, a pill.
+rounded rectangle of half-size `(W, H)` and corner radius `R`, at most
+`R_max = min(W, H)`.
 
 The glass is a solid with a flat bottom at height `D` (the air gap) and a top
 made of every point at distance `R` from an **inner rectangle** of half-size
@@ -127,11 +142,6 @@ N = (o, h) / R                                 outward normal of the top
   radius `R`.
 - At a corner both are nonzero: an eighth-sphere of radius `R`.
 - The footprint `s < R` is exactly the rounded rectangle.
-
-For the pill, `H = R`: the inner rectangle shrinks to a horizontal line
-segment, the body along it is a half-cylinder, and each end is a
-quarter-sphere — together, the top half of a capsule (a rod with rounded
-ends) cut lengthwise.
 
 The solid is convex, which the tracer relies on.
 
@@ -171,7 +181,8 @@ continue from wherever it was.
 For almost every pixel the path is the simple one: in through the top, out
 through the flat bottom, across the gap. The sideways shift points toward the
 glass's center, so the background is seen from further inside than the pixel.
-The flat top shifts nothing; the glass shows only through its edges.
+The flat top shifts nothing; the glass bends the background only at its
+edges.
 
 ### The rim
 
@@ -221,59 +232,53 @@ a background this smooth.
 | 4/3 | all of it — the focal plane, used here |
 | > 4/3 | all of it, repeated as more fringes |
 
-### One free parameter
+### Glass lightness
 
-The model has no absolute scale: multiplying `R` and `D` together scales
-every ray path and changes nothing else. With the gap tied to `R`, the glass
-depends only on `n`, a physical constant, and `R`:
-
-- The **radius is the only free parameter.** The rest of the shape only sizes
-  the flat middle — for the label, the text's width.
-- The same radius looks the same on any shape. A larger radius is the same
-  glass, scaled.
-- `R = 0` gives `D = 0` and a flat sheet that bends nothing: invisible glass.
-- Separately from the optics, the [lightness lift](#glass-lightness) adds one
-  more choice, `L_glass`: how light the thickest glass gets. Its default, 78
-  (about 4.1 L\* above the background), is the one value chosen by eye.
-
-What the scaling doesn't change is the background: its blobs are a few hundred
-pixels across at any radius, so larger glass bends a larger share of one.
-
-## Glass lightness
-
-The glass also lightens what it shows, in proportion to how much glass there
-is: at a point where the glass is `h` thick (out of `R`), the color's CIE L\*
-lifts from the background's `L_bg` toward the glass's `L_glass`:
+The glass lightens what it shows in proportion to how much glass there is. A
+pixel under glass `h` thick keeps the palette index the background picked
+and takes it at lightness
 
 ```
-L = L_bg + (L_glass − L_bg) · h / R
+L = L_bg + (100 − L_bg) · h / R_max
 ```
 
-L\* is perceptually uniform, so twice the glass is twice the visible lift. The
-color itself never changes, only its lightness: nicrainha's 256-gon has the
-same 256 hue angles at every lightness, so the lifted color is the same palette
-index on a lighter ring. The glass is background-colored at its rim and
-lightest where it is thickest — along the pill's center line, since a pill's
-cross-section is a half-cylinder — so it reads as a solid. Black text gets
-more contrast on it, not less.
+- **Linear in thickness**, because L\* is perceptually uniform: twice the
+  glass is twice the visible lift.
+- **From `L_bg` to 100**, the two ends of the scale: no glass, no lift; the
+  thickest glass the rectangle allows, `R_max`, white.
+- **The same hue, lighter.** nicrainha's 256-gon has the same 256 hue angles
+  at every lightness, so the lifted color is the same palette index on a
+  lighter ring — still exactly a nicrainha color.
 
-**The default, `L_glass = 78`, is chosen by eye**: a lift of **about 4.1 L\*
-points** (78 − 73.9124 = 4.0876) at the thickest glass. That is the amount we
-found looks right: enough to read as a lighter body of glass, little enough
-that the background's hues stay clearly visible through it. Unlike the
-background's lightness and the gap, it is not derived. The only
-non-arbitrary values are the two ends of the range — `L_bg` (no lift) and
-100, where the 256-gon collapses to white — and at 100 the glass's middle
-loses its color entirely. For another background lightness, start from the
-same lift of about 4 points.
+The glass is background-colored at its rim and lightest over its flat
+middle, so it reads as a solid. With the corner at 0.38 the flat middle is
+`0.38 · R_max` thick and lifts L\* by 0.38 × (100 − 73.9124) ≈ 9.9, to about
+83.8. Black text gets more contrast on it, not less.
 
 The rings are precomputed at build time by `lightness-rings.js`: 128 rows from
-the background's L\* to 100, about 0.2 apart (below what the eye
-distinguishes), each the 256-gon's vertices in vertex order. Computing them
-takes a few hundred milliseconds and depends on nothing that varies per page
-load, so the page receives them as data and only applies the random rotation,
-as an index offset, and the lift, as a row. `?lightness=` picks how far up the
-table the thickest glass reaches.
+the background's L\* to 100, about 0.2 apart, each the 256-gon's vertices in
+vertex order. Computing them takes a few hundred milliseconds and depends on
+nothing that varies per page load, so the page receives them as data and only
+applies the random rotation, as an index offset, and the lift, as a row.
+
+### The corner radius: the one choice
+
+The model has no absolute scale: multiplying `R`, `D` and the rectangle
+together scales every ray path and changes nothing else. With the gap and the
+lift both following from `R`, the glass is set by a single number, the corner
+radius as a fraction of its maximum, `c = R / R_max`:
+
+- `R = c · R_max`, `D = 4/3 · R`, and the flat middle lifts L\* by
+  `c · (100 − L_bg)`.
+- `c = 0`: square corners, a flat sheet that bends nothing and lifts nothing —
+  invisible glass.
+- `c = 1`: fully rounded, the strongest edges, and white along the thickest
+  line.
+- The same `c` looks the same at any size. A larger rectangle is the same
+  glass, scaled; only the background's blobs, a few hundred pixels across at
+  any size, don't scale with it.
+
+The showcase uses `c = 0.38`, chosen by eye.
 
 ## Reproducing the glass in another UI
 
@@ -282,13 +287,11 @@ table the thickest glass reaches.
 2. Per pixel, trace the view ray as above and evaluate the background where it
    lands. `scene.frag` is self-contained; `backgroundAt` is the only function
    to swap for a different background.
-3. Keep `n = 1.5` and `D = (1/(n − 1) − 1/n) · R`. For a label, make the
-   glass a pill around the content: radius `R`, height `2R`, flat middle as
-   wide as the content, with `R` three line heights of the text by default.
-   Any rounded rectangle works too, with `R` at most half its shorter side.
-4. Keep colors exact: move the *sample position*, never filter, blend or
-   antialias rendered colors.
-5. Lift lightness with glass height, `L_bg + (L_glass − L_bg) · h / R`, by
-   looking the same palette index up on a lighter ring of the 256-gon, with
-   `L_glass` about 4 L\* points above `L_bg`. Precompute the rings rather than
-   computing them per load.
+3. Make the glass a rounded rectangle with corner radius `R = c · R_max`, half
+   its shorter side times `c` (0.38 here), and keep `n = 1.5` and
+   `D = (1/(n − 1) − 1/n) · R`.
+4. Lift lightness with thickness, `L_bg + (100 − L_bg) · h / R_max`, by looking
+   the same palette index up on a lighter ring of the 256-gon. Precompute the
+   rings rather than computing them per load.
+5. Keep colors exact: move the *sample position* and the *ring*, never
+   filter, blend or antialias rendered colors.
