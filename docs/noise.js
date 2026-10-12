@@ -1,7 +1,5 @@
-// CPU side of the background noise. The shader (shaders/scene.frag) evaluates
-// the same 3D Perlin noise per pixel; this copy exists only to measure the
-// field's range each frame. Both read the same permutation table, so their
-// values agree.
+// The background noise's permutation table. The shader (shaders/perlin.glsl)
+// evaluates Ken Perlin's improved noise from it, per pixel.
 
 // Seeded Fisher–Yates shuffle of 0..255 (classic LCG, as in miniature-waffle).
 export function buildPermutation(seed) {
@@ -16,91 +14,52 @@ export function buildPermutation(seed) {
   return perm;
 }
 
-const fade = (t) => t * t * t * (t * (t * 6 - 15) + 10);
-const lerp = (a, b, t) => a + t * (b - a);
+// ── Roughness: nicrainha's cone, carried into the noise ─────────────────────
+// nicrainha's 256-gon is largest at its default lightness and shrinks to a
+// point toward L* 0 and 100. The noise follows: ρ = 1 − r(L) / r(default) is
+// 0 at the default, where the noise is one smooth octave, and approaches 1
+// toward the ends, where it becomes rough. ρ is the share of the noise's
+// energy in its fine detail: fractal noise of gain g keeps 1 − g² of its
+// energy in the base octave, so g = √ρ.
 
-function grad(hash, x, y, z) {
-  const h = hash & 15;
-  const u = h < 8 ? x : y;
-  const v = h < 4 ? y : (h === 12 || h === 14) ? x : z;
-  return ((h & 1) ? -u : u) + ((h & 2) ? -v : v);
+const linear = (c) => { c /= 255; return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; };
+const labF = (t) => (t > 216 / 24389 ? Math.cbrt(t) : (24389 / 27 * t + 16) / 116);
+
+// CIELAB chroma of an 8-bit sRGB color (D65).
+function chroma({ r, g, b }) {
+  const R = linear(r), G = linear(g), B = linear(b);
+  const fx = labF((0.4124 * R + 0.3576 * G + 0.1805 * B) / 0.95047);
+  const fy = labF(0.2126 * R + 0.7152 * G + 0.0722 * B);
+  const fz = labF((0.0193 * R + 0.1192 * G + 0.9505 * B) / 1.08883);
+  return Math.hypot(500 * (fx - fy), 200 * (fy - fz));
 }
 
-// Ken Perlin's improved noise (2002). Periodic with period 256 on every axis.
-export function perlin3(perm, x, y, z) {
-  const P = (i) => perm[i & 255];
-  const X = Math.floor(x), Y = Math.floor(y), Z = Math.floor(z);
-  x -= X; y -= Y; z -= Z;
-  const u = fade(x), v = fade(y), w = fade(z);
-  const A = P(X) + Y, AA = P(A) + Z, AB = P(A + 1) + Z;
-  const B = P(X + 1) + Y, BA = P(B) + Z, BB = P(B + 1) + Z;
-  return lerp(
-    lerp(
-      lerp(grad(P(AA), x, y, z), grad(P(BA), x - 1, y, z), u),
-      lerp(grad(P(AB), x, y - 1, z), grad(P(BB), x - 1, y - 1, z), u),
-      v,
-    ),
-    lerp(
-      lerp(grad(P(AA + 1), x, y, z - 1), grad(P(BA + 1), x - 1, y, z - 1), u),
-      lerp(grad(P(AB + 1), x, y - 1, z - 1), grad(P(BB + 1), x - 1, y - 1, z - 1), u),
-      v,
-    ),
-    w,
-  );
+// Radius of a palette's circle, measured as its colors' mean chroma.
+const radius = (palette) => palette.reduce((sum, color) => sum + chroma(color), 0) / palette.length;
+
+// The noise's gain, √ρ, for a background whose palette is `palette`, given
+// the default's.
+export function gainFor(palette, defaultPalette) {
+  const rho = Math.min(Math.max(1 - radius(palette) / radius(defaultPalette), 0), 1);
+  return Math.sqrt(rho);
 }
 
-// Exact min and range of the 2:1 background field (x in [0,2], y in [0,1])
-// at depth z. The shader stretches this range over the whole palette, as
-// miniature-waffle's static version did per image.
-//
-// A coarse grid locates every local extremum; each is then followed to its
-// true peak or valley by a compass search with halving steps, kept inside the
-// field. The result is the continuous field's own min and max, not a sample.
-const CELLS = 32;  // grid points per lattice unit
-
-export function fieldRange(perm, z) {
-  const cols = 2 * CELLS + 1, rows = CELLS + 1;
-  const grid = new Float64Array(cols * rows);
-  for (let j = 0; j < rows; j++) {
-    for (let i = 0; i < cols; i++) grid[j * cols + i] = perlin3(perm, i / CELLS, j / CELLS, z);
+// Octaves of fractal noise with gain `gain`, and how much faster than one
+// octave it can change: octave k joins while its weight relative to the
+// noise's normalization, gainᵏ / √(Σ gain²ʲ), can still move a value by half
+// a palette step (1/256 of one octave's span of 2), and while its wavelength,
+// cell / 2ᵏ, is at least 2 device px (Nyquist). One octave at gain 0. Each
+// octave changes in time at most as fast as one, so the sum changes at most
+// Σ gainᵏ / √(Σ gain²ᵏ) times as fast (`rate`).
+export function octaves(gain, cellDevicePx) {
+  const nyquist = Math.floor(Math.log2(cellDevicePx / 2)) + 1;
+  let count = 1, weight = 1, total = 1, energy = 1;
+  while (count < nyquist) {
+    weight *= gain;
+    if (weight / Math.sqrt(energy + weight * weight) < 1 / 256) break;
+    total += weight;
+    energy += weight * weight;
+    count++;
   }
-
-  let min = Infinity, max = -Infinity;
-  for (let j = 0; j < rows; j++) {
-    for (let i = 0; i < cols; i++) {
-      const v = grid[j * cols + i];
-      let isMax = true, isMin = true;
-      for (let dj = -1; dj <= 1; dj++) {
-        for (let di = -1; di <= 1; di++) {
-          const ni = i + di, nj = j + dj;
-          if ((di || dj) && ni >= 0 && ni < cols && nj >= 0 && nj < rows) {
-            const w = grid[nj * cols + ni];
-            if (w > v) isMax = false;
-            if (w < v) isMin = false;
-          }
-        }
-      }
-      if (isMax) max = Math.max(max, climb(perm, z, i / CELLS, j / CELLS, 1));
-      if (isMin) min = Math.min(min, -climb(perm, z, i / CELLS, j / CELLS, -1));
-    }
-  }
-  return { min, range: max - min || 1 };
-}
-
-// Highest value of sign · noise reachable uphill from (x, y) within the field.
-function climb(perm, z, x, y, sign) {
-  const f = (px, py) => sign * perlin3(perm, px, py, z);
-  const clampX = (v) => Math.min(Math.max(v, 0), 2);
-  const clampY = (v) => Math.min(Math.max(v, 0), 1);
-  let best = f(x, y);
-  for (let step = 1 / CELLS; step > 1e-7; ) {
-    let moved = false;
-    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-      const nx = clampX(x + dx * step), ny = clampY(y + dy * step);
-      const v = f(nx, ny);
-      if (v > best) { best = v; x = nx; y = ny; moved = true; }
-    }
-    if (!moved) step /= 2;
-  }
-  return best;
+  return { count, rate: total / Math.sqrt(energy) };
 }

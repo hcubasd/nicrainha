@@ -1,134 +1,162 @@
-import * as rings from "virtual:lightness-rings";
+import { DEFAULT_LIGHTNESS } from "nicrainha";
 
-import { buildPermutation, fieldRange } from "./noise.js";
-import fragmentSource from "./shaders/scene.frag?raw";
-import vertexSource from "./shaders/fullscreen.vert?raw";
+import { CORNER, modeFor, Z_PER_SECOND } from "./gl.js";
+import { createScene } from "./scene.js";
 
-// ── Constants ───────────────────────────────────────────────────────────────
-// See docs/README.md for which of these are derived and which are chosen.
+// The showcase: an endless nicrainha background you can pan in any
+// direction, under a glass panel carrying the label. The panel moves with
+// the background, and once it has left the window on one side it comes back
+// in from the opposite one.
+//
+// ?lightness=<L*> sets the background's lightness, 0 to 100 (nicrainha's
+// default otherwise). Backgrounds where white text has more contrast than
+// black get white text and glass that darkens toward black ("dark" mode);
+// the rest get black text and glass that lightens toward white.
 
-// Corner radius of the glass, as a fraction of the largest a rounded
-// rectangle allows (half its shorter side): 0 is square, 1 fully rounded. It
-// sets the glass's thickness, and with it the air gap and the lightness.
-// Chosen by eye.
-const CORNER = 0.38;
-// Glass thickness ℓ, in rem, that lifts L* 1 − 1/e (63%) of the way from the
-// background's to white: L = 100 − (100 − L_bg) · e^(−h/ℓ). Chosen by eye.
-const WHITE_LENGTH_REM = 8;
-// Glass size in CSS px, shrunk to fit the viewport with this margin.
+// Glass size in CSS px, shrunk to fit the window with this margin.
 const PANEL = { width: 560, height: 320, margin: 24 };
-// Depth the noise advances per second, in lattice units: the pattern turns
-// over roughly every 10 s.
-const Z_PER_SECOND = 0.1;
-// Refractive index of glass.
-const GLASS_IOR = 1.5;
-// Air gap between the glass and the background, as a multiple of the corner
-// radius: the back focal distance of the panel's edge, 1/(n − 1) − 1/n
-// (4/3 for glass). The background sits in the edge lens's focal plane.
-const GAP_RATIO = 1 / (GLASS_IOR - 1) - 1 / GLASS_IOR;
+// Fling deceleration: velocity is multiplied by this every millisecond.
+// iOS's own scroll deceleration (UIScrollView.DecelerationRate.normal).
+const DECELERATION = 0.998;
+// Release velocity is measured over the pointer's last 100 ms, and is zero if
+// it rested 40 ms before release: Android's VelocityTracker horizon and its
+// "pointer stopped" time.
+const VELOCITY_WINDOW = 100;
+const STOPPED_TIME = 40;
+// Steepest rate at which one octave of noise changes with z:
+// max |∂n/∂z| ≈ 3.09, measured over 8 million points and refined by local
+// search.
+const MAX_DNDZ = 3.09;
+// Redraw interval while nothing moves, in ms: the time the steepest pixel
+// takes to step one palette color (2/256 of one octave's span, see
+// glass.glsl). Fractal noise can change `rate` times faster (noise.js).
+const animationInterval = (rate) => (1000 * (2 / 256)) / (Z_PER_SECOND * MAX_DNDZ * rate);
 
-// ── WebGL setup ─────────────────────────────────────────────────────────────
+function requestedLightness() {
+  const param = new URLSearchParams(location.search).get("lightness");
+  const value = param?.trim() ? Number(param) : NaN;
+  return value >= 0 && value <= 100 ? value : DEFAULT_LIGHTNESS;
+}
+
+const lightness = requestedLightness();
+document.documentElement.dataset.mode = modeFor(lightness);
 
 const canvas = document.getElementById("canvas");
-const gl = canvas.getContext("webgl2", { antialias: false, alpha: false });
+const scene = createScene(canvas, lightness);
 
-function compile(type, source) {
-  const shader = gl.createShader(type);
-  gl.shaderSource(shader, source);
-  gl.compileShader(shader);
-  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-    throw new Error(gl.getShaderInfoLog(shader));
+const label = document.querySelector(".label");
+
+// ── Panning ─────────────────────────────────────────────────────────────────
+// `pan` is the window's position on the endless background, CSS px. Drags
+// move the background with the pointer, releases fling it with decaying
+// momentum, and wheels and trackpads pan it directly (trackpads already add
+// their own momentum).
+
+const pan = { x: 0, y: 0 };
+let velocity = { x: 0, y: 0 };  // of `pan`, CSS px per ms
+let drag = null;                // { id, samples: [{ t, x, y }] }
+let moved = true;               // whether pan or layout changed since the last draw
+
+const root = document.documentElement;
+
+root.addEventListener("pointerdown", (event) => {
+  if (event.pointerType === "mouse" && event.button !== 0) return;
+  root.setPointerCapture(event.pointerId);
+  velocity = { x: 0, y: 0 };
+  drag = { id: event.pointerId, samples: [{ t: event.timeStamp, x: event.clientX, y: event.clientY }] };
+});
+
+root.addEventListener("pointermove", (event) => {
+  if (event.pointerId !== drag?.id) return;
+  const last = drag.samples.at(-1);
+  pan.x -= event.clientX - last.x;
+  pan.y -= event.clientY - last.y;
+  moved = true;
+  drag.samples.push({ t: event.timeStamp, x: event.clientX, y: event.clientY });
+  while (drag.samples.length > 2 && event.timeStamp - drag.samples[0].t > VELOCITY_WINDOW) drag.samples.shift();
+});
+
+function release(event) {
+  if (event.pointerId !== drag?.id) return;
+  const first = drag.samples[0], last = drag.samples.at(-1);
+  const dt = last.t - first.t;
+  if (event.type === "pointerup" && dt > 0 && event.timeStamp - last.t < STOPPED_TIME) {
+    velocity = { x: -(last.x - first.x) / dt, y: -(last.y - first.y) / dt };
   }
-  return shader;
+  drag = null;
+}
+root.addEventListener("pointerup", release);
+root.addEventListener("pointercancel", release);
+
+root.addEventListener("wheel", (event) => {
+  if (event.ctrlKey) return;  // pinch-zoom: leave it to the browser
+  event.preventDefault();
+  const unit = event.deltaMode === 1 ? parseFloat(getComputedStyle(root).fontSize)
+    : event.deltaMode === 2 ? window.innerHeight : 1;
+  pan.x += event.deltaX * unit;
+  pan.y += event.deltaY * unit;
+  velocity = { x: 0, y: 0 };
+  moved = true;
+}, { passive: false });
+
+// A resized window redraws on the next frame, once the canvas has its new
+// size.
+new ResizeObserver(() => { moved = true; }).observe(canvas);
+
+// Advances a fling by `dt` ms, exactly: velocity decays by DECELERATION per
+// ms, so the distance covered is v · (d^dt − 1) / ln d. It stops once all the
+// travel it has left is under half a device pixel.
+function fling(dt) {
+  if (drag || (!velocity.x && !velocity.y)) return;
+  const decay = DECELERATION ** dt;
+  const travel = (decay - 1) / Math.log(DECELERATION);
+  pan.x += velocity.x * travel;
+  pan.y += velocity.y * travel;
+  velocity = { x: velocity.x * decay, y: velocity.y * decay };
+  moved = true;
+  const remaining = Math.hypot(velocity.x, velocity.y) / -Math.log(DECELERATION);
+  if (remaining < 0.5 / (window.devicePixelRatio || 1)) velocity = { x: 0, y: 0 };
 }
 
-const program = gl.createProgram();
-gl.attachShader(program, compile(gl.VERTEX_SHADER, vertexSource));
-gl.attachShader(program, compile(gl.FRAGMENT_SHADER, fragmentSource));
-gl.linkProgram(program);
-if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-  throw new Error(gl.getProgramInfoLog(program));
-}
-gl.useProgram(program);
-gl.bindVertexArray(gl.createVertexArray());
+// ── Glass ───────────────────────────────────────────────────────────────────
+// A rounded rectangle, centered at first, moving with the background. It
+// wraps with a period of the window plus its own size, so it leaves the
+// window entirely before coming back in from the other side. Its corner
+// radius sets its thickness, and with it the air gap and the lightness.
 
-const uniform = Object.fromEntries(
-  ["u_perm", "u_palette", "u_rows", "u_rotation", "u_whiteLength", "u_resolution", "u_z", "u_min", "u_range", "u_panel", "u_radius", "u_gap", "u_ior"]
-    .map((name) => [name, gl.getUniformLocation(program, name)]),
-);
+const wrap = (value, period) => ((value % period) + period) % period;
 
-// 256-wide lookup texture with `rows` rows on the given texture unit.
-function lookupTexture(unit, internalFormat, format, data, rows = 1) {
-  gl.activeTexture(gl.TEXTURE0 + unit);
-  gl.bindTexture(gl.TEXTURE_2D, gl.createTexture());
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-  gl.texImage2D(gl.TEXTURE_2D, 0, internalFormat, 256, rows, 0, format, gl.UNSIGNED_BYTE, data);
+function glass() {
+  const width = canvas.clientWidth, height = canvas.clientHeight;
+  const halfWidth = Math.max(0, Math.min(PANEL.width, width - 2 * PANEL.margin) / 2);
+  const halfHeight = Math.max(0, Math.min(PANEL.height, height - 2 * PANEL.margin) / 2);
+  return {
+    x: wrap(width / 2 + halfWidth - pan.x, width + 2 * halfWidth) - halfWidth,
+    y: wrap(height / 2 + halfHeight - pan.y, height + 2 * halfHeight) - halfHeight,
+    halfWidth,
+    halfHeight,
+    radius: CORNER * Math.min(halfWidth, halfHeight),
+  };
 }
 
-// ── Scene (seeded once per page load) ───────────────────────────────────────
+// ── Frames ──────────────────────────────────────────────────────────────────
+// A frame is drawn when the view moved, and otherwise as often as the
+// animation needs, rounded to whole display frames. The label moves in the
+// same frame as the glass, so it never lags it.
 
-const perm = buildPermutation(Math.floor(Math.random() * 99999));
-lookupTexture(0, gl.R8UI, gl.RED_INTEGER, perm);
-gl.uniform1i(uniform.u_perm, 0);
-
-// nicrainha's 256-gon at every lightness from the background's (row 0) to
-// white (last row), precomputed at build time (lightness-rings.js). A random
-// rotation of the palette is an index offset into these rows.
-const ringData = Uint8Array.from(atob(rings.RGB), (c) => c.charCodeAt(0));
-lookupTexture(1, gl.RGB8, gl.RGB, ringData, rings.ROWS);
-gl.uniform1i(uniform.u_palette, 1);
-gl.uniform1i(uniform.u_rows, rings.ROWS);
-gl.uniform1i(uniform.u_rotation, Math.floor(Math.random() * 256));
-// How far up the table the thickest glass reaches.
-
-gl.uniform1f(uniform.u_ior, GLASS_IOR);
-
-// ── Sizing ──────────────────────────────────────────────────────────────────
-
-// The canvas renders at full device resolution.
-function layoutCanvas() {
-  const dpr = window.devicePixelRatio || 1;
-  const width = Math.round(canvas.clientWidth * dpr);
-  const height = Math.round(canvas.clientHeight * dpr);
-  if (width === canvas.width && height === canvas.height) return false;
-  canvas.width = width;
-  canvas.height = height;
-  gl.viewport(0, 0, width, height);
-  gl.uniform2f(uniform.u_resolution, width, height);
-  return true;
-}
-
-// The glass is a centered rounded rectangle. Its corner radius R sets the
-// thickness of the glass, and with it the air gap and the lightness. A square
-// rectangle has no glass to show.
-function layoutGlass() {
-  const dpr = window.devicePixelRatio || 1;
-  const halfWidth = Math.max(0, Math.min(PANEL.width, canvas.clientWidth - 2 * PANEL.margin) / 2);
-  const halfHeight = Math.max(0, Math.min(PANEL.height, canvas.clientHeight - 2 * PANEL.margin) / 2);
-  const maxRadius = Math.min(halfWidth, halfHeight);
-  const radius = CORNER * maxRadius;
-  gl.uniform2f(uniform.u_panel, halfWidth * dpr, halfHeight * dpr);
-  gl.uniform1f(uniform.u_radius, radius * dpr);
-  gl.uniform1f(uniform.u_gap, GAP_RATIO * radius * dpr);
-  const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
-  gl.uniform1f(uniform.u_whiteLength, WHITE_LENGTH_REM * rem * dpr);
-}
-
-// ── Animation: only the noise depth z moves ─────────────────────────────────
-// Noise repeats every 256 lattice units, so wrapping z there is seamless and
-// keeps shader floats small.
-
-const start = performance.now();
+let lastFrame, lastDraw = -Infinity;
 
 function frame(now) {
-  if (layoutCanvas()) layoutGlass();
-  const z = (((now - start) / 1000) * Z_PER_SECOND) % 256;
-  const { min, range } = fieldRange(perm, z);
-  gl.uniform1f(uniform.u_z, z);
-  gl.uniform1f(uniform.u_min, min);
-  gl.uniform1f(uniform.u_range, range);
-  gl.drawArrays(gl.TRIANGLES, 0, 3);
+  const period = lastFrame === undefined ? 0 : now - lastFrame;
+  lastFrame = now;
+  fling(period);
+  if (moved || now - lastDraw >= animationInterval(scene.rate()) - period / 2) {
+    const panel = glass();
+    label.style.transform = `translate(${panel.x}px, ${panel.y}px) translate(-50%, -50%)`;
+    scene.draw(now, [panel], pan);
+    lastDraw = now;
+    moved = false;
+  }
   requestAnimationFrame(frame);
 }
 

@@ -1,11 +1,12 @@
 #version 300 es
-// The nicrainha background seen through a floating glass panel.
+// The showcase: an endless, pannable nicrainha background, seen through a
+// floating glass panel.
 //
 // Runs once per device pixel, every frame, at full resolution:
 //   1. trace the pixel's view ray back through the glass into the scene,
 //   2. evaluate the background noise at the point it meets,
-//   3. look the value up in the nicrainha palette, lifted in lightness by the
-//      thickness of the glass above the pixel.
+//   3. look the value up in the nicrainha palette, moved in lightness toward
+//      white or black by the thickness of the glass above the pixel.
 // See docs/README.md for the model and its derivations.
 
 precision highp float;
@@ -13,196 +14,65 @@ precision highp int;
 precision highp usampler2D;
 
 uniform usampler2D u_perm;   // 256×1 noise permutation table (noise.js)
-uniform sampler2D u_palette; // nicrainha's 256-gon, 256 vertices × u_rows lightnesses:
-                             // row 0 at the background's, the last row white
-uniform int u_rows;
-uniform int u_rotation;      // palette rotation: index offset into the vertices
-uniform float u_whiteLength; // glass thickness ℓ that closes 1 − 1/e of the way to white,
-                             // device px
 uniform vec2 u_resolution;   // canvas size in device px
+uniform vec2 u_offset;       // pan position of the window, device px
+uniform float u_cell;        // noise lattice cell size, device px
 uniform float u_z;           // noise depth: the animation time
-uniform float u_min;         // this frame's exact noise range (noise.js)
-uniform float u_range;
-uniform vec2 u_panel;        // panel half-size in device px
-uniform float u_radius;      // corner radius R in device px
-uniform float u_gap;         // air gap D between glass and background, device px
-uniform float u_ior;         // refractive index of the glass
+uniform int u_octaves;       // octaves of fractal noise, 1 at the default lightness
+uniform float u_gain;        // weight of each octave relative to the one before
 
 out vec4 outColor;
 
-// ── Background: 3D Perlin noise ─────────────────────────────────────────────
-// Ken Perlin's improved noise (2002), identical to perlin3 in noise.js.
+#include "perlin.glsl"
+#include "glass.glsl"
 
-int P(int i) { return int(texelFetch(u_perm, ivec2(i & 255, 0), 0).r); }
+// Fractal noise: octave k has twice the frequency of the one before and
+// u_gain times its weight, and the sum is divided by the root of the summed
+// squared weights, so it has the same spread (energy) as one octave. Rare
+// peaks then exceed [−1, 1]; the palette is a circle and the mapping wraps,
+// so they continue smoothly into the next colors. Each octave is shifted by a fraction of a cell (golden
+// ratio multiples) so their lattices don't line up. All octaves share z: they
+// evolve at the base rate, so the steepest change in time stays that of one
+// octave.
+const int MAX_OCTAVES = 16;
+const vec2 OCTAVE_SHIFT = vec2(0.6180339887, 0.3819660113);
 
-float fade(float t) { return t * t * t * (t * (t * 6.0 - 15.0) + 10.0); }
-
-float grad(int hash, float x, float y, float z) {
-  int h = hash & 15;
-  float u = h < 8 ? x : y;
-  float v = h < 4 ? y : (h == 12 || h == 14) ? x : z;
-  return ((h & 1) != 0 ? -u : u) + ((h & 2) != 0 ? -v : v);
-}
-
-float perlin3(vec3 p) {
-  vec3 f = floor(p);
-  int X = int(f.x), Y = int(f.y), Z = int(f.z);
-  vec3 r = p - f;
-  float x = r.x, y = r.y, z = r.z;
-  float u = fade(x), v = fade(y), w = fade(z);
-  int A = P(X) + Y, AA = P(A) + Z, AB = P(A + 1) + Z;
-  int B = P(X + 1) + Y, BA = P(B) + Z, BB = P(B + 1) + Z;
-  return mix(
-    mix(
-      mix(grad(P(AA), x, y, z), grad(P(BA), x - 1.0, y, z), u),
-      mix(grad(P(AB), x, y - 1.0, z), grad(P(BB), x - 1.0, y - 1.0, z), u),
-      v),
-    mix(
-      mix(grad(P(AA + 1), x, y, z - 1.0), grad(P(BA + 1), x - 1.0, y, z - 1.0), u),
-      mix(grad(P(AB + 1), x, y - 1.0, z - 1.0), grad(P(BB + 1), x - 1.0, y - 1.0, z - 1.0), u),
-      v),
-    w);
-}
-
-// Noise value at a point of the background (device px, y down, inside the
-// window). The window shows a centered 2:1 field, x in [0,2) and y in [0,1),
-// with its long axis along the screen's long axis.
-float backgroundAt(vec2 point) {
-  bool portrait = u_resolution.y > u_resolution.x;
-  vec2 screen = portrait ? u_resolution.yx : u_resolution;
-  vec2 pos = portrait ? point.yx : point;
-  float H = max(screen.y, screen.x / 2.0);
-  vec2 field = (pos + (vec2(2.0 * H, H) - screen) / 2.0) / H;
-  return perlin3(vec3(field, u_z));
-}
-
-// ── Scene ───────────────────────────────────────────────────────────────────
-// The window is a box: the background is its floor, and beyond the window's
-// edge each edge pixel continues straight up as a wall. Coordinates are
-// device px with y down, z up toward the viewer; the floor is z = 0.
-
-// Centers of the window's outermost pixels.
-vec2 windowMin() { return vec2(0.5); }
-vec2 windowMax() { return u_resolution - 0.5; }
-
-// Where a ray starting at `pos` (inside the window) with direction `dir`
-// meets the box: the floor if it lands inside the window, otherwise the wall
-// its horizontal path crosses first.
-vec2 hitBox(vec3 pos, vec3 dir) {
-  if (dir.z < 0.0) {
-    vec2 landing = pos.xy + dir.xy * (pos.z / -dir.z);
-    if (all(greaterThanEqual(landing, windowMin())) && all(lessThanEqual(landing, windowMax()))) {
-      return landing;
-    }
+// Noise value at a point of the floor (device px, y down, relative to the
+// window's top-left). The view is panned by u_offset, kept within one
+// 256-cell period of the noise, so coordinates stay small however far it
+// pans.
+//
+// `footprint` is how many device px of floor the pixel spans: 1 off the
+// glass, more where the glass shrinks the background (its outer rim), less
+// where it magnifies. An octave is kept whole while its wavelength is at
+// least 2 footprints (Nyquist, as the octave count assumes for footprint 1),
+// fades out as its wavelength falls to 1 footprint, and is dropped below
+// that, where it could only alias. The base octave is always kept: a pixel
+// straddling a jump in the seen point (where a ray's path through the glass
+// changes) has no meaningful footprint. The normalization counts only the
+// weight kept, so the spread stays that of one octave.
+float backgroundAt(vec2 point, float footprint) {
+  vec2 p = (point + u_offset) / u_cell;
+  float sum = 0.0, energy = 0.0, weight = 1.0, frequency = 1.0;
+  for (int k = 0; k < MAX_OCTAVES; k++) {
+    if (k >= u_octaves) break;
+    float kept = k == 0 ? 1.0 : weight * clamp(log2(u_cell / frequency / footprint), 0.0, 1.0);
+    if (kept <= 0.0) break;
+    vec2 q = mod(p * frequency + float(k) * OCTAVE_SHIFT, 256.0);
+    sum += kept * perlin3(vec3(q, u_z));
+    energy += kept * kept;
+    weight *= u_gain;
+    frequency *= 2.0;
   }
-  vec2 toWall = vec2(
-    dir.x > 0.0 ? (windowMax().x - pos.x) / dir.x : dir.x < 0.0 ? (windowMin().x - pos.x) / dir.x : 1e30,
-    dir.y > 0.0 ? (windowMax().y - pos.y) / dir.y : dir.y < 0.0 ? (windowMin().y - pos.y) / dir.y : 1e30);
-  float t = min(toWall.x, toWall.y);
-  if (t >= 1e30) return clamp(pos.xy, windowMin(), windowMax());  // straight up
-  return clamp(pos.xy + t * dir.xy, windowMin(), windowMax());
+  return sum / sqrt(energy);
 }
-
-// ── Glass ───────────────────────────────────────────────────────────────────
-// Positions here are relative to the panel center. The glass is a solid whose
-// flat bottom is at z = D and whose top is every point at distance R from an
-// inner rectangle (half-size panel − R) lying at z = D: flat in the middle,
-// quarter-cylinders along the edges, eighth-spheres at the corners.
-
-vec2 innerHalfSize() { return u_panel - u_radius; }
-
-// Horizontal offset from the inner rectangle: zero over it, otherwise the
-// vector from its nearest point.
-vec2 offsetFromInner(vec2 xy) {
-  return sign(xy) * max(abs(xy) - innerHalfSize(), 0.0);
-}
-
-// Signed distances to the curved top and to the flat bottom; negative inside.
-float distanceToTop(vec3 p) { return length(vec3(offsetFromInner(p.xy), p.z - u_gap)) - u_radius; }
-float distanceToBottom(vec3 p) { return u_gap - p.z; }
-
-// Signed distance to the glass surface: negative inside. A lower bound on the
-// true distance (an intersection of two shapes), which is all marching needs.
-float glassDistance(vec3 p) { return max(distanceToTop(p), distanceToBottom(p)); }
-
-// Outward unit normal at a surface point: whichever surface it lies on.
-vec3 glassNormal(vec3 p) {
-  if (distanceToBottom(p) > distanceToTop(p)) return vec3(0.0, 0.0, -1.0);
-  return normalize(vec3(offsetFromInner(p.xy), p.z - u_gap));
-}
-
-// Iteration limits of the tracer. Rays grazing the rim need many small steps
-// and several reflections; at these limits none runs out in practice.
-const int MAX_STEPS = 512;
-const int MAX_BOUNCES = 64;
-
-// Distance along `dir` from `origin`, inside the glass, to its surface.
-float distanceToSurface(vec3 origin, vec3 dir) {
-  float t = 1e-2;
-  for (int i = 0; i < MAX_STEPS; i++) {
-    float d = -glassDistance(origin + t * dir);
-    if (d < 1e-3) break;
-    t += max(d, 1e-3);
-  }
-  return t;
-}
-
-// Follows a ray that has just entered the glass at `pos` heading `dir`, and
-// returns where and in which direction it leaves. Inside, it refracts out
-// where Snell's law allows and reflects (total internal reflection) where it
-// doesn't. The glass is convex, so a ray that has left never comes back.
-void traceGlass(inout vec3 pos, inout vec3 dir) {
-  for (int bounce = 0; bounce < MAX_BOUNCES; bounce++) {
-    pos += distanceToSurface(pos, dir) * dir;
-    vec3 normal = glassNormal(pos);
-    vec3 exitDir = refract(dir, -normal, u_ior);  // glass → air
-    if (exitDir != vec3(0.0)) {
-      dir = exitDir;
-      return;
-    }
-    dir = reflect(dir, normal);
-  }
-}
-
-// The point of the scene the viewer sees at `pixel`, and the thickness of the
-// glass there in device px: 0 off the glass and at its rim, R over its flat
-// top.
-vec2 seenPoint(vec2 pixel, out float thickness) {
-  thickness = 0.0;
-  vec2 center = u_resolution / 2.0;
-  vec2 xy = pixel - center;
-  vec2 offset = offsetFromInner(xy);
-  float s = length(offset);
-  if (s >= u_radius) return pixel;  // not over the glass
-
-  // The view ray comes straight down and refracts into the top surface.
-  float h = sqrt(u_radius * u_radius - s * s);
-  thickness = h;
-  vec3 pos = vec3(xy, u_gap + h);
-  vec3 normal = vec3(offset, h) / u_radius;
-  vec3 dir = refract(vec3(0.0, 0.0, -1.0), normal, 1.0 / u_ior);  // air → glass
-
-  traceGlass(pos, dir);
-  return hitBox(pos + vec3(center, 0.0), dir);
-}
-
-// ── Color ───────────────────────────────────────────────────────────────────
-// The background picks the palette index (the hue); the glass thickness picks
-// the row (the lightness). Each layer of glass closes the same fraction of
-// the remaining way from the background's L* to white:
-//   L = 100 − (100 − L_bg) · e^(−h/ℓ)
-// The rows span L_bg to 100 evenly, so the row is that fraction of the table.
-// Every pixel is exactly a nicrainha color.
 
 void main() {
   vec2 pixel = vec2(gl_FragCoord.x, u_resolution.y - gl_FragCoord.y);
   float thickness;
-  float value = backgroundAt(seenPoint(pixel, thickness));
-  // u_min and u_range are the field's exact extremes, so t is already in
-  // [0, 1]; the clamp only absorbs float32 rounding.
-  float t = clamp((value - u_min) / u_range, 0.0, 1.0);
-  int vertex = (int(floor(t * 255.0 + 0.5)) + u_rotation) & 255;
-  float towardWhite = 1.0 - exp(-thickness / u_whiteLength);
-  int row = int(floor(towardWhite * float(u_rows - 1) + 0.5));
-  outColor = texelFetch(u_palette, ivec2(vertex, row), 0);
+  vec2 point = seenPoint(pixel, thickness);
+  // The floor spanned by this pixel, from the seen points of its neighbors.
+  float footprint = max(length(dFdx(point)), length(dFdy(point)));
+  float value = backgroundAt(point, footprint);
+  outColor = paletteColor(value, thickness);
 }

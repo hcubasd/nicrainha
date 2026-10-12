@@ -1,9 +1,10 @@
 # nicrainha showcase
 
-An animated, full-screen nicrainha background seen through a floating slab of
-glass, with `npm i nicrainha` on it. The glass is a physical model — rays
-traced through an exact surface with Snell's law — not a styling effect, and
-it puts no color on screen that nicrainha didn't produce.
+An endless, animated nicrainha background you can pan in any direction, seen
+through a floating slab of glass with `npm i nicrainha` on it. The glass is a
+physical model — rays traced through an exact surface with Snell's law — not
+a styling effect, and it puts no color on screen that nicrainha didn't
+produce.
 
 Live: https://hcubasd.github.io/nicrainha/
 
@@ -25,97 +26,234 @@ deploy it to GitHub Pages (`.github/workflows/pages.yaml`).
 
 ## The look
 
-- **Background:** 3D Perlin noise filling the window, colored by nicrainha's
-  256-color palette at its default lightness, slowly evolving.
-- **Glass:** a centered rounded rectangle, 560 × 320 CSS px (shrunk to fit
-  smaller windows with a 24 px margin), floating above the background. Its
-  corner radius is **0.38 of the largest the rectangle allows** (half its
-  shorter side: 0.38 × 160 = 60.8 px at full size). Through it the background
-  is refracted at the rounded edges and lightened where the glass is thick.
-- **Text:** `npm i nicrainha`, black, system monospace, the default 16 px,
-  centered on the glass's flat middle, where the glass doesn't refract.
+- **Background:** 3D Perlin noise covering an endless plane, colored by
+  nicrainha's 256-color palette, slowly evolving. Drag, fling, scroll or
+  swipe to pan it in any direction.
+- **Glass:** a rounded rectangle, 560 × 320 CSS px (shrunk to fit smaller
+  windows with a 24 px margin), floating above the background. It starts
+  centered and moves with the background; once it has left the window on
+  one side, it comes back in from the opposite one. Its corner radius is **0.38
+  of the largest the rectangle allows** (half its shorter side: 0.38 × 160 =
+  60.8 px at full size). Through it the background is refracted at the
+  rounded edges and moved toward white, or toward black on dark backgrounds,
+  where the glass is thick.
+- **Text:** `npm i nicrainha`, system monospace, the default 16 px, on the
+  glass's flat middle, where the glass doesn't refract. Black on light
+  backgrounds, white on dark ones.
 
-There are no URL parameters; the page always shows this.
+### URL parameter
+
+`?lightness=<L*>` sets the background's lightness, from 0 to 100. Without it,
+or with a value outside that range, the background is at nicrainha's default,
+L\* 73.9124, where its 256-gon is largest — the most saturated palette.
+
+The lightness also decides the mode:
+
+- **Light** (black text, glass toward white) when black text has more
+  contrast on the background than white text;
+- **Dark** (white text, glass toward black) otherwise.
+
+Every color of a nicrainha palette has the palette's L\*, hence the same
+luminance, so one answer holds for the whole background. Black and white
+text have equal WCAG contrast at luminance `Y = √(1.05 · 0.05) − 0.05 ≈
+0.179`, L\* ≈ 49.4, where both give 4.58:1 — above the 4.5:1 of WCAG AA even
+there. The glass only moves the text's background further from the text's
+color, so it never lowers contrast.
+
+Near L\* 0 or 100, nicrainha's 256-gon shrinks toward gray, so the background
+is muted and the glass has little room to move. That is the palette, not a
+limit of the page.
 
 ## What is derived and what is chosen
 
-**Derived** — physics, geometry, or nicrainha itself:
+**Derived** — physics, geometry, measurement, platforms, or nicrainha itself:
 
 | What | Value | Why |
 | --- | --- | --- |
-| Background lightness | L\* 73.9124 | nicrainha's default: where its 256-gon is largest, the most saturated palette |
+| Background lightness | `?lightness`, else L\* 73.9124 | nicrainha's default: its most saturated palette |
+| Light or dark mode | by text contrast, switching at L\* ≈ 49.4 | [equal contrast for black and white text](#url-parameter) |
 | Refractive index | 1.5 | glass |
 | Air gap | `4/3 · R` | the edge lens's back focal distance ([derivation](#the-gap-the-edges-focal-plane)) |
-| Lightness lift | exponential in glass thickness, toward white | each layer of glass closes the same fraction of the remaining way to white ([details](#glass-lightness)) |
-| Beyond the window | the window's own edge pixels | [the window is a box](#the-scene-the-window-is-a-box) |
-| Color range | the field's exact min and max | computed, not sampled |
+| Glass lightness | exponential in thickness, toward white or black | each layer of glass closes the same fraction of the remaining way ([details](#glass-lightness)) |
+| Noise roughness | gain `√ρ`, `ρ = 1 − r(L)/r(default)`; octaves until too weak or below Nyquist — per pixel, through the glass | [nicrainha's cone, carried into the noise](#roughness-nicrainhas-cone-in-the-noise) |
+| Color mapping | noise `[−1, 1]` → one turn of the palette | the noise's exact range; [fixed, so panning never shifts colors](#color) |
+| Off-screen | the endless background itself | [the floor is endless](#the-scene-an-endless-floor) |
+| Fling deceleration | velocity × 0.998 per ms | iOS's `UIScrollView.DecelerationRate.normal` |
+| Release velocity | over the last 100 ms; zero if the pointer rested 40 ms | Android's `VelocityTracker` horizon and "pointer stopped" time |
+| Redraw rate at rest | every ≈ 25 ms at the default, sooner on rougher noise | the time the noise's steepest pixel takes to step one palette color ([details](#frames)) |
 
 **Chosen by eye** — design, not physics:
 
 | What | Value |
 | --- | --- |
-| Corner radius | 0.38 of the maximum — sets the glass's thickness, gap and lift |
-| Whitening length `ℓ` | 8 rem — glass this thick lifts L\* 63% of the way to white |
+| Corner radius | 0.38 of the maximum — sets the glass's thickness, gap and lightness |
+| Glass length `ℓ` | 8 rem — glass this thick moves L\* 63% of the way to white or black |
 | Glass size | 560 × 320 CSS px, 24 px margin — layout only, it sizes the flat middle |
 | Animation pace | 0.1 noise lattice units per second: the pattern turns over about every 10 s |
-| Noise scale | a 2 × 1 noise field across the window, inherited from miniature-waffle's showcase |
-| Text | black system monospace, 16 px |
+| Noise scale | the window's long axis spans 2 lattice cells, unless its short axis would span more than one |
+| Text | system monospace, 16 px |
 
-**Numerical** — precision, not appearance: 128 lightness rows (0.2 L\* apart,
-below what the eye distinguishes), the tracer's iteration limits and
-sub-pixel tolerances. The noise seed and palette rotation are random per page
-load, on purpose.
+**Numerical** — precision, not appearance: the octaves' golden-ratio shifts, 256 lightness rows (L\* 0.39
+apart, about one 8-bit sRGB level), the tracer's iteration limits and
+sub-pixel tolerances, the noise's steepest slope in time (measured). The
+noise seed and palette rotation are random per page load, on purpose.
 
 ## Files
 
 ```
-index.html               page shell: full-viewport canvas plus the text
-styles.css               layout; the text is centered on screen
-main.js                  constants, WebGL setup, glass sizing, render loop
-noise.js                 permutation table, CPU Perlin noise, exact field range
+index.html               page shell: full-window canvas plus the text
+styles.css               layout and the two text colors
+main.js                  the lightness parameter, panning, the glass's position, frames
+scene.js                 the renderer: WebGL setup and one draw per frame
+gl.js                    shared WebGL plumbing, glass constants, the palette upload, light/dark mode
+noise.js                 the noise's permutation table and roughness model
 lightness-rings.js       build-time palette table (a Vite plugin)
 vite.config.js           registers that plugin
-shaders/fullscreen.vert  one triangle covering the viewport
-shaders/scene.frag       background, glass tracing and palette lookup
+shaders/fullscreen.vert  one triangle covering the window
+shaders/scene.frag       the endless background, and the pixel's color
+shaders/perlin.glsl      3D Perlin noise
+shaders/glass.glsl       the glass: geometry, tracer, scene, palette lookup
 ```
 
 ## Rendering
 
-The fragment shader runs once per device pixel, every frame, at full
-resolution, with nothing cached or interpolated between frames:
+The fragment shader runs once per device pixel of the window, at full
+resolution, with nothing cached between frames:
 
 1. **Glass.** If the pixel is over the glass, trace its view ray through the
    glass to the point of the scene it shows (below). Otherwise use the pixel
    itself.
-2. **Background.** Evaluate 3D Perlin noise at that point. `x, y` place it in
-   a centered 2:1 field covering the viewport, long axis along the screen's
-   long axis; `z` is time.
-3. **Color.** Normalize the value with this frame's range to pick one of the
-   256 palette colors, then lift its lightness by the glass thickness above
-   the pixel (zero off the glass).
+2. **Background.** Evaluate fractal 3D Perlin noise at that point. `x, y`
+   are its position on the endless plane — the pixel plus the pan — in
+   lattice cells; `z` is time. How many octaves, and how rough, follows from
+   the lightness ([roughness](#roughness-nicrainhas-cone-in-the-noise)) and
+   from how much of the plane the pixel spans through the glass.
+3. **Color.** Pick one of the 256 palette colors from the value, then move
+   its lightness toward the target by the glass thickness above the pixel
+   (zero off the glass).
 
-The palette is nicrainha's 256-gon in a random rotation `r`: rotation `r`
-starts at vertex `r`, so it is an index offset. The noise repeats every 256
-lattice units, so `z` wraps there without changing any value.
+The canvas has exactly one pixel per device pixel. It is sized from the
+browser's own device-pixel measure of it (`ResizeObserver`'s
+`device-pixel-content-box`; rounded CSS size × pixel ratio where a browser
+doesn't report it, as Safari doesn't), because a canvas the browser has to
+rescale blends colors.
 
-The frame's range is the field's exact minimum and maximum over the whole 2:1
-field, computed on the CPU by `noise.js` (about 0.15 ms per frame): a 65×33
-grid locates every local extremum, and each is followed to its true peak or
-valley by a compass search with halving steps, down to 10⁻⁷ lattice units,
-kept inside the field. Sampling alone would not do: a 64×32 grid misses the
-extremes by up to 11 palette steps, flattening the brightest and darkest
-spots.
+### An endless background without storing anything
+
+Perlin noise is a pure function of position and time: the same `(x, y, z)`
+always gives the same value. So there are no cells or tiles to generate in
+advance, to cache, or to evict: each frame evaluates exactly the visible
+pixels at the current pan, and any place you come back to is as you left it.
+Panning into new territory costs exactly what redrawing the same territory
+costs, and memory doesn't grow however far you travel — the whole state is
+the pan, the time, a 256-byte permutation table and the palette table. Time
+is one global `z`, so the whole plane evolves in step.
+
+The noise repeats every 256 lattice units on every axis. The page keeps the
+pan and `z` modulo that period before they reach the GPU: seamless, and the
+shader's coordinates stay small, so float precision is the same however far
+you travel. At full size a cell is 720 CSS px, so the plane repeats only
+every 184,000 px.
+
+### Roughness: nicrainha's cone in the noise
+
+nicrainha's 256-gon is largest at its default lightness and shrinks to a
+point toward L\* 0 and 100. The noise follows that cone: the smaller the
+palette's circle, the rougher the noise. With `r(L)` the circle's radius
+(measured as its colors' mean CIELAB chroma),
+
+```
+ρ = 1 − r(L) / r(default)
+```
+
+is 0 at the default and approaches 1 toward the ends. ρ is the **share of
+the noise's energy in its fine detail**. The background is fractal noise:
+octave `k` at `2ᵏ` times the base frequency and `gᵏ` times its weight. Such
+noise keeps `1 − g²` of its energy (variance) in the base octave, so
+
+```
+g = √ρ
+```
+
+- **At the default, `g = 0`:** one octave, plain Perlin noise.
+- **Normalization by energy:** the sum is divided by `√(Σ g²ᵏ)`, so it has the
+  same spread as one octave at every lightness, and rough pages use as much
+  of the palette as smooth ones. Rare peaks then exceed `[−1, 1]`; the
+  palette is a circle and the mapping wraps, so they continue smoothly into
+  the next colors, and a value still always picks the same color.
+- **Octaves** are added while the next one, relative to that normalization,
+  could still move a value by half a palette step (`1/256` of one octave's
+  span), and while its wavelength is at least 2 device px (Nyquist): one at
+  the default, 6 at L\* 60, and the Nyquist limit (9–10) from about L\* 50
+  down and L\* 85 up.
+- **Through the glass, per pixel:** the glass changes how much floor a pixel
+  spans (its footprint, measured from the seen points of neighboring
+  pixels): its outer rim squeezes a wide strip of background into a few
+  pixels. There, finer octaves would alias into speckle, so an octave is kept
+  whole while its wavelength is at least 2 footprints (the same Nyquist rule),
+  fades out as it falls to 1 footprint, and is dropped below that — the idea
+  behind mipmapping. The base octave is always kept, and the normalization
+  counts only the weight kept. Off the glass the footprint is 1 and nothing
+  changes.
+- **Roughness as a Hurst exponent:** gain `g` means `H = −log₂ g`: infinite
+  (perfectly smooth) at the default, 1 (classic fractal noise) around L\* 50,
+  approaching 0 (rough) toward the ends, never reaching it — at L\* 0 or 100
+  the palette is a single color, and nothing shows.
+
+| L\* | ρ | gain `√ρ` | octaves (2× screen) |
+| --- | --- | --- | --- |
+| 73.9 (default) | 0 | 0 | 1 |
+| 60 | 0.15 | 0.39 | 6 |
+| 50 | 0.27 | 0.51 | 9 |
+| 30 | 0.49 | 0.70 | 10 |
+| 20 / 90 | 0.60 / 0.66 | 0.77 / 0.81 | 10 |
+
+This also hides 8-bit banding where it is worst. Away from the default the
+256 palette colors are closer together than 8-bit color represents evenly,
+so some neighbors round to the same color and others jump; in smooth noise
+those jumps draw contour lines. The finer octaves break those gradients up.
+
+Each octave is shifted by a fraction of a cell (multiples of the golden
+ratio's fractional parts) so their lattices don't line up. All octaves share
+`z`, so they evolve at the base rate and every lightness drifts at the same
+pace. Each octave costs one more noise evaluation per pixel: up to 10× the
+noise work away from the default.
 
 ### Color
 
-Every pixel is exactly a nicrainha color: off the glass, one of the 256 colors
-at the background's lightness; on it, the same palette index at a lighter
-ring of nicrainha's 256-gon. The glass changes *where* the background is
-sampled — always a point inside the window — and *which lightness* the color
-is taken at, never how a color is computed. Lookups are `texelFetch` from a
-nearest-filtered texture. There is deliberately no blending, blur, tint,
-Fresnel reflection, dispersion or antialiasing: each would put colors outside
-nicrainha's on screen.
+Every pixel is exactly a nicrainha color.
+
+**Index.** One octave of noise spans exactly `[−1, 1]` (a multi-start search
+over 4,800 local extrema found none beyond 1; the maximum, 1, sits at the
+center of a cell face), and the fractal sum is normalized to the same spread.
+That range is one turn of the 256-color palette:
+
+```
+index = (⌊(n + 1) · 128⌋ + rotation) mod 256
+```
+
+A value picks the same color wherever and whenever it occurs, so panning
+never shifts colors. The palette is a circle — index 255 sits next to index 0
+— so the mapping wraps rather than clips, seamlessly. A single screen shows
+the part of the circle its noise covers, as a map shows one region. The
+rotation is random per page load, an index offset: rotation `r` of the
+palette starts at vertex `r`.
+
+**Row.** Off the glass, the color is taken from the background's own ring:
+nicrainha's 256-gon at exactly the requested lightness, computed in the
+browser by `generatePalettes` (a few milliseconds). Under glass it is the
+same index on another ring of the 256-gon (see [glass
+lightness](#glass-lightness)), from a table of 256 rings at L\* 0 to 100
+precomputed at build time by `lightness-rings.js`. nicrainha's 256-gon has the
+same 256 hue angles at every lightness, so the index keeps its hue from ring
+to ring.
+
+The glass changes *where* the background is sampled and *which ring* the
+color is taken from, never how a color is computed. Lookups are `texelFetch`
+from a nearest-filtered texture. There is deliberately no blending, blur,
+tint, Fresnel reflection, dispersion or antialiasing: each would put colors
+outside nicrainha's on screen. (Dropping octaves too fine for a pixel, above,
+filters the noise *before* its value picks a color, so it doesn't.)
 
 ## Glass model
 
@@ -145,13 +283,14 @@ N = (o, h) / R                                 outward normal of the top
 
 The solid is convex, which the tracer relies on.
 
-### The scene: the window is a box
+### The scene: an endless floor
 
-Only the window's background exists, so the scene is a box: the background
-is its floor, and beyond the window's edge each edge pixel continues straight
-up as a wall. Every ray that leaves the glass meets this box somewhere, so
-every pixel has a color, and that color always comes from a pixel of the
-window — its interior, or its very edge.
+The background is an endless floor, so a ray heading down lands on real
+background wherever it goes, on screen or off. Only a ray that leaves the
+glass heading up never reaches it; it takes the window's edge pixel where its
+horizontal path crosses the window's border, as if each edge pixel continued
+straight up as a wall. Every ray therefore meets something, and every pixel
+has a color.
 
 ### Tracing a pixel
 
@@ -166,17 +305,14 @@ finds the point of the scene whose light reaches the pixel.
    signed distance, `max(distance to the top, distance to the bottom)`.
 3. **Leave or reflect.** Refract out, `refract(dir, −normal, n)`. If Snell's
    law has no solution (total internal reflection), reflect and repeat 2.
-4. **Meet the box.** The ray continues in a straight line. If it lands on the
-   floor inside the window, that's the point. Otherwise — it would land
-   beyond the window, or it left the glass upward — it meets the wall where
-   its horizontal path crosses the window's edge, and shows that edge pixel.
+4. **Meet the scene.** The ray continues in a straight line to the floor, or,
+   heading up, to the window's wall.
 
 A ray that has left the glass never re-enters, because it is convex. There is
-no arbitrary clamp: rays land wherever the math puts them, and the window's
-own edge pixels are the only limit. The tracer's iteration limits (512
-marching steps per crossing, 64 reflections) were checked by rendering at
-several sizes and pixel densities: no ray reaches them. One that did would
-continue from wherever it was.
+no arbitrary clamp: rays land wherever the math puts them. The tracer's
+iteration limits (512 marching steps per crossing, 64 reflections) were
+checked by rendering at several sizes and pixel densities: no ray reaches
+them. One that did would continue from wherever it was.
 
 For almost every pixel the path is the simple one: in through the top, out
 through the flat bottom, across the gap. The sideways shift points toward the
@@ -187,13 +323,12 @@ edges.
 ### The rim
 
 Toward the outer edge the surface steepens, and the rays leave the bottom
-ever closer to sideways, so they travel ever further across the gap. Close
-enough to the rim they cross the whole window and show its wall. In the
-outermost ~0.7% of the edge band they can't leave the bottom at all (total
-internal reflection); they bounce, leave upward, and also end on the wall. The
-rim therefore shows thin bands of the window's edge colors. It is
-stair-stepped because each pixel is one point sample; smoothing it would mean
-blending colors.
+ever closer to sideways, so they travel ever further across the gap and show
+background far from the glass. In the outermost ~0.7% of the edge band they
+can't leave the bottom at all (total internal reflection); they bounce, leave
+upward, and end on the window's wall. The rim therefore shows thin bands of
+distant background. It is stair-stepped because each pixel is one point
+sample; smoothing it would mean blending colors.
 
 ### The gap: the edge's focal plane
 
@@ -219,8 +354,11 @@ The showcase puts the background exactly there: `D = (1/(n − 1) − 1/n) · R`
 It is the only gap that follows from the glass itself rather than from taste.
 The edge band then shows the nearby background mirrored, with the strongest
 magnification where the curve meets the flat top — a thick, well-defined
-border. Gaps beyond it repeat the mirrored image as multiple fringes; gaps
-below it give weaker edges, down to `D = 0`, where the edge barely shows over
+border. There a strip of pixels sees the same line of background, smeared
+across the edge: on rough backgrounds that shows as streaks perpendicular to
+the edge, as a real slab would show over a fine texture. Gaps beyond it
+repeat the mirrored image as multiple fringes; gaps below it give weaker
+edges, down to `D = 0`, where the edge barely shows over
 a background this smooth.
 
 | `D / R` | Part of the edge band that is mirrored |
@@ -234,77 +372,152 @@ a background this smooth.
 
 ### Glass lightness
 
-The glass lightens what it shows, more where there is more of it. A pixel
-under glass `h` thick keeps the palette index the background picked and takes
-it at lightness
+The glass moves what it shows toward a target lightness — white (L\* 100) in
+light mode, black (L\* 0) in dark mode — more where there is more of it. A
+pixel under glass `h` thick keeps the palette index the background picked and
+takes it at lightness
 
 ```
-L = 100 − (100 − L_bg) · e^(−h/ℓ)
+L = L_target + (L_bg − L_target) · e^(−h/ℓ)
 ```
 
 This is the one curve that satisfies all of:
 
 - **It depends only on the actual thickness `h`,** like the gap, so the same
   corner radius gives the same glass on any rectangle.
-- **No glass, no lift:** `L(0) = L_bg`.
-- **It never passes white,** however thick the glass: it only approaches 100.
-- **Each layer of glass closes the same fraction of the remaining way to
-  white** (`dL/dh = (100 − L)/ℓ`) — the Beer–Lambert form, running toward
-  white instead of black.
+- **No glass, no change:** `L(0) = L_bg`.
+- **It never passes the target,** however thick the glass: it only
+  approaches it.
+- **Each layer of glass closes the same fraction of the remaining way**
+  (`dL/dh = (L_target − L)/ℓ`) — the Beer–Lambert form.
 
-For thin glass it is linear in thickness, with slope `(100 − L_bg)/ℓ` ≈ 0.2
-L\* per CSS px; L\* is perceptually uniform, so there twice the glass is twice
-the visible lift.
+For thin glass it is linear in thickness, with slope `|L_target − L_bg|/ℓ`;
+L\* is perceptually uniform, so there twice the glass is twice the visible
+change.
 
 Converting a thickness into a lightness needs one length to measure the
-thickness against: `ℓ`, the thickness that closes 1 − 1/e ≈ 63% of the way to
-white. Nothing in the physics fixes it. The showcase uses **`ℓ = 8 rem`**
-(128 CSS px at the default font size), chosen by eye — it matches the look
-first tuned by eye on the full-size glass — and expressed in rem so the glass
-follows the user's font size along with the text.
+thickness against: `ℓ`, the thickness that closes 1 − 1/e ≈ 63% of the way.
+Nothing in the physics fixes it. The showcase uses **`ℓ = 8 rem`** (128 CSS px
+at the default font size), chosen by eye, and expressed in rem so the glass
+follows the user's font size along with the text. Thickness is a length, so
+any curve from thickness to lightness needs such a length; models without
+one, such as `1 − a/(1 + h/a)`, only hide it in the unit `h` is measured in.
 
-**The same hue, lighter.** nicrainha's 256-gon has the same 256 hue angles at
-every lightness, so the lifted color is the same palette index on a lighter
-ring — still exactly a nicrainha color. The glass is background-colored at
-its rim and lightest over its flat middle, so it reads as a solid. At full
-size the flat middle is 60.8 CSS px thick and lifts L\* by about 9.9, to about
-83.8. Black text gets more contrast on it, not less.
+**The same hue, lighter or darker.** The moved color is the same palette
+index on another ring of nicrainha's 256-gon — still exactly a nicrainha
+color. The glass is background-colored at its rim and furthest from it over
+its flat middle, so it reads as a solid. At full size on the default
+background, the flat middle is 60.8 CSS px thick and lifts L\* by about 9.9,
+to about 83.8.
 
-The rings are precomputed at build time by `lightness-rings.js`: 128 rows from
-the background's L\* to 100, about 0.2 apart, each the 256-gon's vertices in
-vertex order. Computing them takes a few hundred milliseconds and depends on
-nothing that varies per page load, so the page receives them as data and only
-applies the random rotation, as an index offset, and the lift, as a row.
+The rings come from the 256-row table, the nearest row to `L`. Within half a
+row of the background's L\* the background's own ring is used, so the glass
+meets the background seamlessly at its rim.
 
 ### The corner radius
 
 The corner radius `R` sets everything about the glass: its thickness (`R`
 over the flat middle), the air gap (`4/3 · R`) and, through the thickness,
-the lift. The same `R` gives the same glass on any rectangle; width and
+the lightness. The same `R` gives the same glass on any rectangle; width and
 height only size the flat middle. `R = 0` is a flat sheet that bends nothing
-and lifts nothing — invisible glass.
+and changes nothing — invisible glass.
 
 The showcase sets it as a fraction of the largest a rounded rectangle allows,
 `R = c · R_max` with `c = 0.38`, chosen by eye: 60.8 CSS px at full size.
-On a small window the rectangle shrinks, so `R`, the gap and the lift shrink
-with it.
+On a small window the rectangle shrinks, so `R`, the gap and the lightness
+change shrink with it.
 
 The refraction alone has no absolute scale — multiplying `R` and `D` together
 scales every ray path and changes nothing else — so the optics look the same
-at any radius. The lift does have a scale, `ℓ`: more glass is lighter glass.
+at any radius. The lightness does have a scale, `ℓ`: more glass is lighter,
+or darker, glass.
+
+## Panning
+
+The browser's own scrolling can't be endless or two-dimensional this way, so
+the page pans the background itself, as maps do. Because the page also moves
+the glass and the label, in the same frame as it draws, they can never lag
+the background — the lag of a canvas tracking natively scrolled content
+doesn't arise.
+
+- **Drag:** the background follows the pointer exactly.
+- **Fling:** on release, the background keeps the pointer's velocity —
+  measured over its last 100 ms, and zero if it rested 40 ms before release
+  (Android's `VelocityTracker`) — and decelerates by a factor of 0.998 per
+  millisecond, iOS's own scroll deceleration. Each frame advances the fling
+  exactly, `v · (0.998^dt − 1) / ln 0.998`, so its feel doesn't depend on the
+  frame rate. It stops once all the travel it has left is under half a device
+  pixel.
+- **Wheel and trackpad:** their deltas pan directly; trackpads already add
+  their own momentum. Pinch (a wheel with Ctrl) is left to the browser.
+
+**The glass wraps.** It moves with the background, and its position wraps,
+horizontally and vertically, with a period of the window plus the panel's own
+size: it leaves the window entirely before coming back in from the opposite
+side, so there is only ever one panel (and one label).
+
+### Frames
+
+A frame is drawn when the view moved — a drag, a fling, a wheel, a resize —
+and otherwise only as often as the animation needs. The noise's steepest rate
+of change in time is `max |∂n/∂z| ≈ 3.09` (measured over 8 million points and
+refined by local search); at 0.1 lattice units per second, the steepest pixel
+of one octave steps one palette color (2/256 of its span) every
+
+```
+(2/256) / (0.1 · 3.09) s ≈ 25 ms
+```
+
+Fractal noise can change up to `Σ gᵏ / √(Σ g²ᵏ)` times faster — each octave
+at most as fast as one, then the energy normalization — so rough pages redraw
+proportionally more often: every 25 ms at the default, about 14 ms at L\* 50,
+9 ms at L\* 20. The interval is rounded to whole display frames, so at rest a
+120 Hz screen draws every third frame at the default.
+
+### Cost
+
+What the renderer does, and doesn't, spend:
+
+- **One draw per frame, one triangle**, one fragment per device pixel. No
+  geometry, no render targets, no readbacks, no per-frame allocation or
+  texture upload: a frame sets a handful of uniforms (pan, time, panels) and
+  draws.
+- **Off the glass**, a pixel costs only the noise: one Perlin evaluation per
+  octave (8 permutation lookups each) and one palette lookup. That is 1
+  evaluation at the default and up to about 10 toward L\* 0 and 100.
+- **Under the glass**, a pixel also traces its ray: sphere tracing through the
+  solid, almost always a single crossing; only the outermost rim reflects.
+  The rim's footprint filtering then skips octaves it can't show.
+- **Nothing scales with distance traveled**: no tiles, no caches (see
+  [above](#an-endless-background-without-storing-anything)).
+- **Frames are skipped** when nothing moves, down to the noise's own pace.
+- **Setup is once per page load**: one nicrainha palette at the exact
+  lightness (a few ms); the 256 other rings are built at build time.
 
 ## Reproducing the glass in another UI
 
 1. Draw the background procedurally, so it can be evaluated at any point,
    and color it by palette lookup.
 2. Per pixel, trace the view ray as above and evaluate the background where it
-   lands. `scene.frag` is self-contained; `backgroundAt` is the only function
-   to swap for a different background.
+   lands. `glass.glsl` is self-contained; `backgroundAt(point, footprint)` in
+   `scene.frag` is the only function to swap for a different background. A
+   detailed background should drop detail finer than `footprint`, as this
+   one drops octaves.
 3. Make the glass a rounded rectangle with corner radius `R` (here 0.38 of
    half its shorter side), and keep `n = 1.5` and
    `D = (1/(n − 1) − 1/n) · R`.
-4. Lift lightness with thickness, `L = 100 − (100 − L_bg) · e^(−h/ℓ)` with
-   `ℓ = 8 rem`, by looking the same palette index up on a lighter ring of the
-   256-gon. Precompute the rings rather than computing them per load.
+4. Move lightness with thickness, `L = L_target + (L_bg − L_target) ·
+   e^(−h/ℓ)` with `ℓ = 8 rem`, toward white or black by text contrast, by
+   looking the same palette index up on another ring of the 256-gon.
+   Precompute the rings rather than computing them per load.
 5. Keep colors exact: move the *sample position* and the *ring*, never
-   filter, blend or antialias rendered colors.
+   filter, blend or antialias rendered colors, and give the canvas exactly
+   one pixel per device pixel.
+6. If the background moves under content, move everything in the same frame
+   you draw — your own panning — or put the canvas in the scrolled content;
+   never draw a fixed canvas to follow native scrolling. A procedural
+   background needs no tiling: offset its coordinates by the pan, kept within
+   the noise's period.
+7. Draw only when something moved, or when the animation could have changed
+   a pixel's color; with a fractal background, scale that pace by its
+   octaves' combined rate.

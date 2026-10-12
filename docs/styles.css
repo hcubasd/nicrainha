@@ -4,13 +4,22 @@
   padding: 0;
 }
 
+/* The page doesn't scroll: main.js pans the endless background itself, so
+   the browser's own scrolling, zooming by touch, and text selection by drag
+   are off. */
 html, body {
   font-family: system-ui, sans-serif;
   width: 100%;
   height: 100%;
   overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: none;
+  user-select: none;
+  cursor: grab;
   background: #000;
 }
+
+html:active { cursor: grabbing; }
 
 canvas {
   position: fixed;
@@ -20,13 +29,13 @@ canvas {
   display: block;
 }
 
-/* The text, centered on screen, so it sits on the glass's flat middle (the
-   glass is centered too; see main.js), where the glass doesn't refract. */
+/* The text, kept on the glass's flat middle, where the glass doesn't refract:
+   main.js moves it with the glass, centered on it. */
 .label {
   position: fixed;
-  inset: 0;
-  display: grid;
-  place-items: center;
+  left: 0;
+  top: 0;
+  white-space: nowrap;
 }
 
 code {
@@ -34,3 +43,6 @@ code {
   font-size: 1rem;
   color: #000;
 }
+
+/* Dark backgrounds: white text, glass toward black (see modeFor in gl.js). */
+[data-mode="dark"] code { color: #fff; }
