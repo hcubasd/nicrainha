@@ -1,9 +1,10 @@
 import { generatePalettes } from "nicrainha";
+import { ROUGHNESS } from "virtual:lightness-rings";
 
 import {
   createProgram, GLASS_UNIFORMS, observeDeviceSize, setBox, setGlassLength, setPanels, uploadTables, Z_PER_SECOND,
 } from "./gl.js";
-import { buildPermutation, gainFor, octaves } from "./noise.js";
+import { buildPermutation, gainFor, octaves, roughness, scaleFor } from "./noise.js";
 import fragmentSource from "./shaders/scene.frag?raw";
 
 // The showcase's renderer: an endless, animated nicrainha background on a
@@ -27,16 +28,22 @@ export function createScene(canvas, lightness) {
   // Seeded once per page load.
   const perm = buildPermutation(Math.floor(Math.random() * 99999));
   uploadTables(gl, uniform, perm, lightness);
-  // The noise is as rough as nicrainha's circle is small (noise.js).
-  const gain = gainFor(generatePalettes(256, { lightness })[0], generatePalettes(256)[0]);
+  // Cells as small as nicrainha's circle is small, and noise as rough as its
+  // colors' steps are uneven (noise.js). The glass shows other rings but
+  // keeps the background's noise: it moves where the background is seen,
+  // not what it is.
+  const palette = generatePalettes(256, { lightness })[0], defaultPalette = generatePalettes(256)[0];
+  const gain = gainFor(lightness, roughness(palette, defaultPalette), ROUGHNESS);
+  const scale = scaleFor(palette, defaultPalette);
   gl.uniform1f(uniform.u_gain, gain);
 
   // The canvas renders at full device resolution.
   let deviceWidth = 0, deviceHeight = 0;
   observeDeviceSize(canvas, (width, height) => { deviceWidth = width; deviceHeight = height; });
 
-  // A lattice cell is sized by the window: its long axis spans 2 cells,
-  // unless that would make its short axis span more than one.
+  // A lattice cell is sized by the window — at the default, its long axis
+  // spans 2 cells, unless that would make its short axis span more than one —
+  // times the palette's scale, and never below 2 device px (Nyquist).
   let cell, fractal = { count: 1, rate: 1 };
 
   function layoutCanvas() {
@@ -50,7 +57,7 @@ export function createScene(canvas, lightness) {
     gl.uniform2f(uniform.u_resolution, width, height);
     setBox(gl, uniform, width / dpr, height / dpr, dpr);
     setGlassLength(gl, uniform, dpr);
-    cell = Math.max(Math.min(width, height), Math.max(width, height) / 2) / dpr;
+    cell = Math.max(scale * Math.max(Math.min(width, height), Math.max(width, height) / 2), 2) / dpr;
     gl.uniform1f(uniform.u_cell, cell * dpr);
     fractal = octaves(gain, cell * dpr);
     // Must not exceed MAX_OCTAVES in scene.frag.

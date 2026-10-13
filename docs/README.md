@@ -75,7 +75,8 @@ limit of the page.
 | Refractive index | 1.5 | glass |
 | Air gap | `4/3 · R` | the edge lens's back focal distance ([derivation](#the-gap-the-edges-focal-plane)) |
 | Glass lightness | exponential in thickness, toward white or black | each layer of glass closes the same fraction of the remaining way ([details](#glass-lightness)) |
-| Noise roughness | gain `√ρ`, `ρ = 1 − r(L)/r(default)`; octaves until too weak or below Nyquist — per pixel, through the glass | [nicrainha's cone, carried into the noise](#roughness-nicrainhas-cone-in-the-noise) |
+| Noise scale | cells × `r(L)/r(default)`, the palette circle's radius | [same color change per pixel as the default](#scale-and-roughness-from-the-palette) |
+| Noise roughness | gain `√ρ`, `ρ = 1 − σ(default)/σ(L)` from the palette's step unevenness, running maximum from the default; octaves until too weak or below Nyquist — per pixel, through the glass | [as rough as the 8-bit steps are uneven](#scale-and-roughness-from-the-palette) |
 | Color mapping | noise `[−1, 1]` → one turn of the palette | the noise's exact range; [fixed, so panning never shifts colors](#color) |
 | Off-screen | the endless background itself | [the floor is endless](#the-scene-an-endless-floor) |
 | Fling deceleration | velocity × 0.998 per ms | iOS's `UIScrollView.DecelerationRate.normal` |
@@ -90,7 +91,7 @@ limit of the page.
 | Glass length `ℓ` | 8 rem — glass this thick moves L\* 63% of the way to white or black |
 | Glass size | 560 × 320 CSS px, 24 px margin — layout only, it sizes the flat middle |
 | Animation pace | 0.1 noise lattice units per second: the pattern turns over about every 10 s |
-| Noise scale | the window's long axis spans 2 lattice cells, unless its short axis would span more than one |
+| Noise scale at the default | the window's long axis spans 2 lattice cells, unless its short axis would span more than one |
 | Text | system monospace, 16 px |
 
 **Numerical** — precision, not appearance: the octaves' golden-ratio shifts, 256 lightness rows (L\* 0.39
@@ -106,8 +107,8 @@ styles.css               layout and the two text colors
 main.js                  the lightness parameter, panning, the glass's position, frames
 scene.js                 the renderer: WebGL setup and one draw per frame
 gl.js                    shared WebGL plumbing, glass constants, the palette upload, light/dark mode
-noise.js                 the noise's permutation table and roughness model
-lightness-rings.js       build-time palette table (a Vite plugin)
+noise.js                 the noise's permutation table, scale and roughness
+lightness-rings.js       build-time palette table and its rows' roughness (a Vite plugin)
 vite.config.js           registers that plugin
 shaders/fullscreen.vert  one triangle covering the window
 shaders/scene.frag       the endless background, and the pixel's color
@@ -125,8 +126,9 @@ resolution, with nothing cached between frames:
    itself.
 2. **Background.** Evaluate fractal 3D Perlin noise at that point. `x, y`
    are its position on the endless plane — the pixel plus the pan — in
-   lattice cells; `z` is time. How many octaves, and how rough, follows from
-   the lightness ([roughness](#roughness-nicrainhas-cone-in-the-noise)) and
+   lattice cells; `z` is time. The cell size, how many octaves, and how rough
+   follow from the palette ([scale and
+   roughness](#scale-and-roughness-from-the-palette)) and
    from how much of the plane the pixel spans through the glass.
 3. **Color.** Pick one of the 256 palette colors from the value, then move
    its lightness toward the target by the glass thickness above the pixel
@@ -152,24 +154,55 @@ is one global `z`, so the whole plane evolves in step.
 The noise repeats every 256 lattice units on every axis. The page keeps the
 pan and `z` modulo that period before they reach the GPU: seamless, and the
 shader's coordinates stay small, so float precision is the same however far
-you travel. At full size a cell is 720 CSS px, so the plane repeats only
-every 184,000 px.
+you travel. The plane repeats every 256 cells: at full size and the default
+lightness a cell is 720 CSS px, so every 184,000 px; cells shrink toward the
+ends (below), to every 74,000 px at L\* 20, 29,000 px at L\* 5 and 5,900 px at
+L\* 1, where the palette is nearly a single color.
 
-### Roughness: nicrainha's cone in the noise
+### Scale and roughness, from the palette
 
-nicrainha's 256-gon is largest at its default lightness and shrinks to a
-point toward L\* 0 and 100. The noise follows that cone: the smaller the
-palette's circle, the rougher the noise. With `r(L)` the circle's radius
-(measured as its colors' mean CIELAB chroma),
+nicrainha's 256-gon is largest at its default lightness and shrinks toward
+L\* 0 and 100: the sRGB gamut narrows there. A smaller circle changes the
+noise twice over, and both changes are measured from the palette itself.
+
+**Scale: smaller circle, smaller cells.** A full turn of the palette spans
+one noise value range, so a small circle is a small color change per cell.
+The cells shrink with the circle's radius `r(L)` (its colors' mean CIELAB
+chroma),
 
 ```
-ρ = 1 − r(L) / r(default)
+cell(L) = cell(default) · r(L) / r(default)
 ```
 
-is 0 at the default and approaches 1 toward the ends. ρ is the **share of
-the noise's energy in its fine detail**. The background is fractal noise:
-octave `k` at `2ᵏ` times the base frequency and `gᵏ` times its weight. Such
-noise keeps `1 − g²` of its energy (variance) in the base octave, so
+so the color changes as much per pixel at every lightness as at the default:
+the same smooth curves, in smaller shapes. Cells never go below 2 device px
+(Nyquist).
+
+**Roughness: uneven steps, rougher noise.** The palette's 256 colors are
+evenly spaced, but they're rounded to 8-bit sRGB. On a large circle every
+color still differs from its neighbor by about the same amount, and a smooth
+slope reads as a smooth gradient. On a small circle some neighbors round to
+the same 8-bit color and others jump, and smooth noise draws those uneven
+steps as bands. With `σ(L)` the standard deviation of the steps between
+neighboring palette colors, measured in ΔE2000 (the standard perceptual
+color difference),
+
+```
+ρ = 1 − σ(default) / σ(L)
+```
+
+is 0 wherever the steps are as even as the default's and grows with their
+unevenness. Rounding is close to random, so ρ measured at a single lightness
+is noisy — 0.26 at L\* 59, 0 at 60, 0.29 at 62. The noise takes the **running
+maximum** instead: the largest ρ measured between the lightness and the
+default (over the 256 rows of the palette table, measured at build time, and
+the exact lightness itself). Roughness then only ever grows toward the ends,
+and neighboring lightnesses look alike.
+
+ρ is the **share of the noise's energy in its fine detail**. The background is
+fractal noise: octave `k` at `2ᵏ` times the base frequency and `gᵏ` times its
+weight. Such noise keeps `1 − g²` of its energy (variance) in the base
+octave, so
 
 ```
 g = √ρ
@@ -183,9 +216,7 @@ g = √ρ
   the next colors, and a value still always picks the same color.
 - **Octaves** are added while the next one, relative to that normalization,
   could still move a value by half a palette step (`1/256` of one octave's
-  span), and while its wavelength is at least 2 device px (Nyquist): one at
-  the default, 6 at L\* 60, and the Nyquist limit (9–10) from about L\* 50
-  down and L\* 85 up.
+  span), and while its wavelength is at least 2 device px (Nyquist).
 - **Through the glass, per pixel:** the glass changes how much floor a pixel
   spans (its footprint, measured from the seen points of neighboring
   pixels): its outer rim squeezes a wide strip of background into a few
@@ -195,28 +226,32 @@ g = √ρ
   behind mipmapping. The base octave is always kept, and the normalization
   counts only the weight kept. Off the glass the footprint is 1 and nothing
   changes.
-- **Roughness as a Hurst exponent:** gain `g` means `H = −log₂ g`: infinite
-  (perfectly smooth) at the default, 1 (classic fractal noise) around L\* 50,
-  approaching 0 (rough) toward the ends, never reaching it — at L\* 0 or 100
-  the palette is a single color, and nothing shows.
+- **The glass keeps the background's noise.** It shows other rings of the
+  256-gon, but it moves where the background is seen, not what the
+  background is, so its noise is the background's.
 
-| L\* | ρ | gain `√ρ` | octaves (2× screen) |
+| L\* | cell scale `r(L)/r(default)` | gain `g` | octaves (2× screen) |
 | --- | --- | --- | --- |
-| 73.9 (default) | 0 | 0 | 1 |
-| 60 | 0.15 | 0.39 | 6 |
-| 50 | 0.27 | 0.51 | 9 |
-| 30 | 0.49 | 0.70 | 10 |
-| 20 / 90 | 0.60 / 0.66 | 0.77 / 0.81 | 10 |
+| 1 | 0.03 | 0.69 | 5 |
+| 5 | 0.16 | 0.69 | 7 |
+| 10 | 0.29 | 0.69 | 8 |
+| 20 | 0.40 | 0.63 | 9 |
+| 30 | 0.51 | 0.58 | 9 |
+| 50 | 0.73 | 0.29 | 5 |
+| 60 | 0.85 | 0.28 | 5 |
+| 73.9 (default) | 1 | 0 | 1 |
+| 80 | 0.74 | 0.18 | 4 |
+| 90 | 0.34 | 0.53 | 8 |
+| 97 | 0.10 | 0.58 | 7 |
 
-This also hides 8-bit banding where it is worst. Away from the default the
-256 palette colors are closer together than 8-bit color represents evenly,
-so some neighbors round to the same color and others jump; in smooth noise
-those jumps draw contour lines. The finer octaves break those gradients up.
+The roughest band, L\* 1–10, has the most uneven steps; the light end is
+nearly as uneven. Octave counts there are limited by the small cells: there
+are fewer octaves above 2 device px.
 
 Each octave is shifted by a fraction of a cell (multiples of the golden
 ratio's fractional parts) so their lattices don't line up. All octaves share
 `z`, so they evolve at the base rate and every lightness drifts at the same
-pace. Each octave costs one more noise evaluation per pixel: up to 10× the
+pace. Each octave costs one more noise evaluation per pixel: up to 9× the
 noise work away from the default.
 
 ### Color
@@ -470,8 +505,8 @@ of one octave steps one palette color (2/256 of its span) every
 
 Fractal noise can change up to `Σ gᵏ / √(Σ g²ᵏ)` times faster — each octave
 at most as fast as one, then the energy normalization — so rough pages redraw
-proportionally more often: every 25 ms at the default, about 14 ms at L\* 50,
-9 ms at L\* 20. The interval is rounded to whole display frames, so at rest a
+proportionally more often: every 25 ms at the default, about 19 ms at L\* 50,
+12 ms at L\* 20. The interval is rounded to whole display frames, so at rest a
 120 Hz screen draws every third frame at the default.
 
 ### Cost
@@ -483,16 +518,17 @@ What the renderer does, and doesn't, spend:
   texture upload: a frame sets a handful of uniforms (pan, time, panels) and
   draws.
 - **Off the glass**, a pixel costs only the noise: one Perlin evaluation per
-  octave (8 permutation lookups each) and one palette lookup. That is 1
-  evaluation at the default and up to about 10 toward L\* 0 and 100.
+  octave (14 permutation lookups each) and one palette lookup. That is 1
+  evaluation at the default and up to 9 away from it.
 - **Under the glass**, a pixel also traces its ray: sphere tracing through the
   solid, almost always a single crossing; only the outermost rim reflects.
   The rim's footprint filtering then skips octaves it can't show.
 - **Nothing scales with distance traveled**: no tiles, no caches (see
   [above](#an-endless-background-without-storing-anything)).
 - **Frames are skipped** when nothing moves, down to the noise's own pace.
-- **Setup is once per page load**: one nicrainha palette at the exact
-  lightness (a few ms); the 256 other rings are built at build time.
+- **Setup is once per page load**: nicrainha's palettes at the exact
+  lightness and at the default, and their scale and step unevenness (a few
+  ms). The 256 other rings, and their roughness, are built at build time.
 
 ## Reproducing the glass in another UI
 
