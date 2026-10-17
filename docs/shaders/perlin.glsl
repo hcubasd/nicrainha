@@ -1,7 +1,8 @@
 // 3D Perlin noise, Ken Perlin's improved noise (2002). Its values span
 // exactly [−1, 1], and it repeats every 256 lattice units on every axis.
-// Included by scene.frag (gl.js resolves #include); expects
-// `uniform usampler2D u_perm`, the 256×1 permutation table.
+// Included by scene.frag (renderer.js resolves #include).
+
+uniform usampler2D u_perm;  // 256 × 1 permutation table (noise.js)
 
 int P(int i) { return int(texelFetch(u_perm, ivec2(i & 255, 0), 0).r); }
 

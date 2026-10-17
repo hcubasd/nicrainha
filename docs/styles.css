@@ -44,5 +44,5 @@ code {
   color: #000;
 }
 
-/* Dark backgrounds: white text, glass toward black (see modeFor in gl.js). */
-[data-mode="dark"] code { color: #fff; }
+/* Text on dark glass (see textColor in model.js). */
+[data-text="white"] code { color: #fff; }

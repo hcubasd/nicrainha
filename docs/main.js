@@ -1,36 +1,19 @@
 import { DEFAULT_LIGHTNESS } from "nicrainha";
 
-import { CORNER, modeFor, Z_PER_SECOND } from "./gl.js";
-import { createScene } from "./scene.js";
+import { CORNER, GLASS_LENGTH_REM, glassLightness, PANEL, textColor } from "./model.js";
+import { createRenderer } from "./renderer.js";
 
-// The showcase: an endless nicrainha background you can pan in any
+// The showcase page: an endless nicrainha background you can pan in any
 // direction, under a glass panel carrying the label. The panel moves with
 // the background, and once it has left the window on one side it comes back
 // in from the opposite one.
 //
-// ?lightness=<L*> sets the background's lightness, 0 to 100 (nicrainha's
-// default otherwise). Backgrounds where white text has more contrast than
-// black get white text and glass that darkens toward black ("dark" mode);
-// the rest get black text and glass that lightens toward white.
+// ?lightness=<L*> sets the background's lightness, 0 to 100, nicrainha's
+// default otherwise. It is the page's only input.
 
-// Glass size in CSS px, shrunk to fit the window with this margin.
-const PANEL = { width: 560, height: 320, margin: 24 };
-// Fling deceleration: velocity is multiplied by this every millisecond.
-// iOS's own scroll deceleration (UIScrollView.DecelerationRate.normal).
-const DECELERATION = 0.998;
-// Release velocity is measured over the pointer's last 100 ms, and is zero if
-// it rested 40 ms before release: Android's VelocityTracker horizon and its
-// "pointer stopped" time.
-const VELOCITY_WINDOW = 100;
-const STOPPED_TIME = 40;
-// Steepest rate at which one octave of noise changes with z:
-// max |∂n/∂z| ≈ 3.09, measured over 8 million points and refined by local
-// search.
-const MAX_DNDZ = 3.09;
-// Redraw interval while nothing moves, in ms: the time the steepest pixel
-// takes to step one palette color (2/256 of one octave's span, see
-// glass.glsl). Fractal noise can change `rate` times faster (noise.js).
-const animationInterval = (rate) => (1000 * (2 / 256)) / (Z_PER_SECOND * MAX_DNDZ * rate);
+const root = document.documentElement;
+const canvas = document.getElementById("canvas");
+const label = document.querySelector(".label");
 
 function requestedLightness() {
   const param = new URLSearchParams(location.search).get("lightness");
@@ -39,12 +22,7 @@ function requestedLightness() {
 }
 
 const lightness = requestedLightness();
-document.documentElement.dataset.mode = modeFor(lightness);
-
-const canvas = document.getElementById("canvas");
-const scene = createScene(canvas, lightness);
-
-const label = document.querySelector(".label");
+const renderer = createRenderer(canvas, lightness);
 
 // ── Panning ─────────────────────────────────────────────────────────────────
 // `pan` is the window's position on the endless background, CSS px. Drags
@@ -52,12 +30,19 @@ const label = document.querySelector(".label");
 // momentum, and wheels and trackpads pan it directly (trackpads already add
 // their own momentum).
 
+// Fling deceleration: velocity is multiplied by this every millisecond.
+// iOS's own scroll deceleration (UIScrollView.DecelerationRate.normal).
+const DECELERATION = 0.998;
+// Release velocity is measured over the pointer's last 100 ms, and is zero if
+// it rested 40 ms before release: Android's VelocityTracker horizon and its
+// "pointer stopped" time.
+const VELOCITY_WINDOW = 100;
+const STOPPED_TIME = 40;
+
 const pan = { x: 0, y: 0 };
 let velocity = { x: 0, y: 0 };  // of `pan`, CSS px per ms
 let drag = null;                // { id, samples: [{ t, x, y }] }
 let moved = true;               // whether pan or layout changed since the last draw
-
-const root = document.documentElement;
 
 root.addEventListener("pointerdown", (event) => {
   if (event.pointerType === "mouse" && event.button !== 0) return;
@@ -91,17 +76,12 @@ root.addEventListener("pointercancel", release);
 root.addEventListener("wheel", (event) => {
   if (event.ctrlKey) return;  // pinch-zoom: leave it to the browser
   event.preventDefault();
-  const unit = event.deltaMode === 1 ? parseFloat(getComputedStyle(root).fontSize)
-    : event.deltaMode === 2 ? window.innerHeight : 1;
+  const unit = event.deltaMode === 1 ? layout.rem : event.deltaMode === 2 ? window.innerHeight : 1;
   pan.x += event.deltaX * unit;
   pan.y += event.deltaY * unit;
   velocity = { x: 0, y: 0 };
   moved = true;
 }, { passive: false });
-
-// A resized window redraws on the next frame, once the canvas has its new
-// size.
-new ResizeObserver(() => { moved = true; }).observe(canvas);
 
 // Advances a fling by `dt` ms, exactly: velocity decays by DECELERATION per
 // ms, so the distance covered is v · (d^dt − 1) / ln d. It stops once all the
@@ -118,31 +98,48 @@ function fling(dt) {
   if (remaining < 0.5 / (window.devicePixelRatio || 1)) velocity = { x: 0, y: 0 };
 }
 
-// ── Glass ───────────────────────────────────────────────────────────────────
-// A rounded rectangle, centered at first, moving with the background. It
-// wraps with a period of the window plus its own size, so it leaves the
-// window entirely before coming back in from the other side. Its corner
-// radius sets its thickness, and with it the air gap and the lightness.
+// ── Layout ──────────────────────────────────────────────────────────────────
+// Set by the window's size and the root font size, so measured once per
+// resize: the panel's size and corner radius, the glass length ℓ, and the
+// label's color. The label sits on the panel's flat middle, R thick, in
+// whichever text color has more contrast there.
 
-const wrap = (value, period) => ((value % period) + period) % period;
+let layout;
 
-function glass() {
+function measure() {
   const width = canvas.clientWidth, height = canvas.clientHeight;
+  const rem = parseFloat(getComputedStyle(root).fontSize);
   const halfWidth = Math.max(0, Math.min(PANEL.width, width - 2 * PANEL.margin) / 2);
   const halfHeight = Math.max(0, Math.min(PANEL.height, height - 2 * PANEL.margin) / 2);
+  const radius = CORNER * Math.min(halfWidth, halfHeight);
+  const glassLength = GLASS_LENGTH_REM * rem;
+  layout = { width, height, rem, halfWidth, halfHeight, radius, glassLength };
+  root.dataset.text = textColor(glassLightness(lightness, radius, glassLength));
+  moved = true;
+}
+measure();
+new ResizeObserver(measure).observe(canvas);
+
+// The panel, moving with the background. Its position wraps with a period of
+// the window plus its own size, so it leaves the window entirely before
+// coming back in from the other side.
+const wrap = (value, period) => ((value % period) + period) % period;
+
+function panel() {
+  const { width, height, halfWidth, halfHeight, radius } = layout;
   return {
     x: wrap(width / 2 + halfWidth - pan.x, width + 2 * halfWidth) - halfWidth,
     y: wrap(height / 2 + halfHeight - pan.y, height + 2 * halfHeight) - halfHeight,
     halfWidth,
     halfHeight,
-    radius: CORNER * Math.min(halfWidth, halfHeight),
+    radius,
   };
 }
 
 // ── Frames ──────────────────────────────────────────────────────────────────
 // A frame is drawn when the view moved, and otherwise as often as the
-// animation needs, rounded to whole display frames. The label moves in the
-// same frame as the glass, so it never lags it.
+// animation needs (renderer.interval), rounded to whole display frames. The
+// label moves in the same frame as the glass, so it never lags it.
 
 let lastFrame, lastDraw = -Infinity;
 
@@ -150,10 +147,10 @@ function frame(now) {
   const period = lastFrame === undefined ? 0 : now - lastFrame;
   lastFrame = now;
   fling(period);
-  if (moved || now - lastDraw >= animationInterval(scene.rate()) - period / 2) {
-    const panel = glass();
-    label.style.transform = `translate(${panel.x}px, ${panel.y}px) translate(-50%, -50%)`;
-    scene.draw(now, [panel], pan);
+  if (moved || now - lastDraw >= renderer.interval - period / 2) {
+    const glass = panel();
+    label.style.transform = `translate(${glass.x}px, ${glass.y}px) translate(-50%, -50%)`;
+    renderer.draw(now, { pan, panels: [glass], glassLength: layout.glassLength });
     lastDraw = now;
     moved = false;
   }
