@@ -8,7 +8,7 @@
 		"preview": "vite preview --host 0.0.0.0"
 	},
 	"dependencies": {
-		"nicrainha": "^0.1.0"
+		"nicrainha": "file:.."
 	},
 	"devDependencies": {
 		"vite": "^8.3.1"

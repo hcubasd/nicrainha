@@ -1,14 +1,17 @@
 {
 	"name": "nicrainha",
 	"version": "0.0.0",
-	"description": "Perceptually-uniform color palettes and color mapping from the CIE Lab color space.",
+	"description": "Perceptually-uniform color palettes from the CIE Lab color space, and an animated nicrainha background with refracting glass for the web.",
 	"keywords": [
 		"color",
 		"palette",
 		"cielab",
 		"perceptual",
 		"color-science",
-		"ansi"
+		"ansi",
+		"webgl",
+		"glass",
+		"custom-elements"
 	],
 	"license": "MIT",
 	"homepage": "https://github.com/hcubasd/nicrainha#readme",
@@ -21,13 +24,17 @@
 	},
 	"scripts": {
 		"test": "vitest",
-		"build": "tsc --rootDir src --outDir dist"
+		"build": "tsc --rootDir src --outDir dist && node scripts/tables.js"
 	},
 	"engines": {
 		"node": ">=23.0.0 <27"
 	},
 	"files": [
 		"dist"
+	],
+	"sideEffects": [
+		"./dist/index.js",
+		"./dist/ui/elements.js"
 	],
 	"devDependencies": {
 		"@tsconfig/node23": "^23.0.6",

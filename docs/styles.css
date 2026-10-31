@@ -4,45 +4,22 @@
   padding: 0;
 }
 
-/* The page doesn't scroll: main.js pans the endless background itself, so
-   the browser's own scrolling, zooming by touch, and text selection by drag
-   are off. */
 html, body {
-  font-family: system-ui, sans-serif;
-  width: 100%;
   height: 100%;
   overflow: hidden;
-  overscroll-behavior: none;
-  touch-action: none;
-  user-select: none;
-  cursor: grab;
-  background: #000;
+  font-family: system-ui, sans-serif;
 }
 
-html:active { cursor: grabbing; }
-
-canvas {
-  position: fixed;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  display: block;
-}
-
-/* The text, kept on the glass's flat middle, where the glass doesn't refract:
-   main.js moves it with the glass, centered on it. */
-.label {
-  position: fixed;
-  left: 0;
-  top: 0;
-  white-space: nowrap;
+/* main.js sizes and places the glass; the label sits on its flat middle. */
+nicrainha-glass {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 code {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
   font-size: 1rem;
-  color: #000;
+  white-space: nowrap;
 }
-
-/* Text on dark glass (see textColor in model.js). */
-[data-text="white"] code { color: #fff; }
