@@ -306,9 +306,9 @@ npm test          # vitest
 npm run build     # tsc → dist/, then the lookup tables
 ```
 
-The showcase in `docs/` is a separate Vite project that uses the library in
-this repo. Pushes that touch `docs/` or `src/` on the default branch deploy it
-to GitHub Pages.
+The showcase in `docs/` is a separate Vite project that installs `nicrainha`
+from npm. Pushes that touch `docs/` on the default branch deploy it to GitHub
+Pages.
 
 ```sh
 cd docs

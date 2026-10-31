@@ -18,7 +18,6 @@ npm run dev       # dev server on all interfaces
 npm run build     # static site → dist/
 ```
 
-`docs/` is its own Vite project that depends on the library in this repo
-(`file:..`), so build the library first (`npm run build` at the root). Pushes
-that touch `docs/` or `src/` on the default branch build and deploy it to
-GitHub Pages (`.github/workflows/pages.yaml`).
+`docs/` is its own Vite project that installs `nicrainha` from npm, as any
+user would. Pushes that touch `docs/` on the default branch build and deploy
+it to GitHub Pages (`.github/workflows/pages.yaml`).
