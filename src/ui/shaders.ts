@@ -8,9 +8,6 @@
 //      palette of the lightness the glass gives it, dithered per pixel.
 // Every pixel is exactly a nicrainha color. See the README for the model.
 
-// Must match the renderer.
-export const MAX_PANELS = 16;
-
 // One triangle covering the viewport; no vertex buffers.
 export const vertexShader: string = /* glsl */ `#version 300 es
 void main() {
@@ -38,10 +35,10 @@ uniform usampler2D u_ngons;           // each row's palette: size n, then rotati
 uniform float u_lightness;            // the background's L*
 uniform float u_defaultLightness;     // nicrainha's default L*
 
-const int MAX_PANELS = ${MAX_PANELS};
 uniform int u_panelCount;
-uniform vec4 u_panelBox[MAX_PANELS];      // center.xy, halfSize.xy, device px
-uniform float u_panelRadius[MAX_PANELS];  // corner radius R, device px
+uniform highp sampler2D u_panels;         // two texels per panel, in rows:
+                                          // center.xy, halfSize.xy, then R,
+                                          // all device px
 uniform float u_ior;                      // refractive index
 uniform float u_gapRatio;                 // air gap D / R
 uniform float u_minRadius;                // below this, glass is flat
@@ -93,9 +90,15 @@ struct Panel {
   float gap;
 };
 
+vec4 panelTexel(int t) {
+  int width = textureSize(u_panels, 0).x;
+  return texelFetch(u_panels, ivec2(t % width, t / width), 0);
+}
+
 Panel panelAt(int i) {
-  float radius = u_panelRadius[i];
-  return Panel(u_panelBox[i].xy, u_panelBox[i].zw, radius, u_gapRatio * radius);
+  vec4 box = panelTexel(2 * i);
+  float radius = panelTexel(2 * i + 1).x;
+  return Panel(box.xy, box.zw, radius, u_gapRatio * radius);
 }
 
 // Horizontal offset from the inner rectangle: zero over it, else the vector
@@ -141,8 +144,7 @@ float distanceToSurface(Panel panel, vec3 origin, vec3 dir) {
 // lands on the background, on screen or off.
 vec2 seenPoint(vec2 pixel, out float travel) {
   travel = 0.0;
-  for (int i = 0; i < MAX_PANELS; i++) {
-    if (i >= u_panelCount) break;
+  for (int i = 0; i < u_panelCount; i++) {
     Panel panel = panelAt(i);
     vec2 xy = pixel - panel.center;
     if (!covers(panel, xy)) continue;

@@ -143,7 +143,7 @@ A glass panel: any element inside the background, shaped by its CSS. Its
 layout box is its size and position, and its `border-radius` (top-left, at
 most half its shorter side) is its corner radius. It has no attributes. Text
 on it is black by default, the most contrast on the glass; your CSS can
-override that. Panels must not overlap, and a background draws up to 16.
+override that. Panels must not overlap; there may be any number of them.
 
 A panel refracts the background behind it at its rounded edges and moves its
 lightness toward `DEFAULT_LIGHTNESS`, most where the glass is thickest. With

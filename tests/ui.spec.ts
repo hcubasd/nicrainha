@@ -16,6 +16,7 @@ import {
 	glassLightness,
 	IOR,
 	MAX_DNDZ,
+	overlaps,
 } from "../src/ui/model.ts";
 import { buildPermutation, maxDensity, perlin3, perlinCdf } from "../src/ui/noise.ts";
 import { largestPalette } from "../src/ui/palette.ts";
@@ -112,6 +113,20 @@ describe("model", () => {
 		expect(glassLightness(DEFAULT_LIGHTNESS, 40, 60)).toBe(DEFAULT_LIGHTNESS);
 		// Flat glass is the limit: the default lightness all over.
 		expect(glassLightness(95, 0, 0)).toBe(DEFAULT_LIGHTNESS);
+	});
+
+	it("counts only panels that share area with the window", () => {
+		const window = { left: 0, top: 0, right: 800, bottom: 600 };
+		const at = (left: number, top: number, size = 100) => ({ left, top, right: left + size, bottom: top + size });
+		expect(overlaps(at(350, 250), window)).toBe(true);
+		expect(overlaps(at(-50, -50), window)).toBe(true);
+		expect(overlaps(at(750, 550), window)).toBe(true);
+		expect(overlaps(at(-100, 0), window)).toBe(false);
+		expect(overlaps(at(800, 0), window)).toBe(false);
+		expect(overlaps(at(1600, 250), window)).toBe(false);
+		expect(overlaps(at(0, 600), window)).toBe(false);
+		expect(overlaps(at(0, -100), window)).toBe(false);
+		expect(overlaps(at(300, 300, 0), window)).toBe(false);
 	});
 
 	it("advances a fling the same whatever the frame rate", () => {

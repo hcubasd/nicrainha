@@ -69,6 +69,21 @@ export function glassLightness(
 	return lightness + (DEFAULT_LIGHTNESS - lightness) * travel;
 }
 
+// Whether two boxes share any area. A panel changes only the pixels it
+// covers, so one that shares none with the window changes none.
+export interface Box {
+	left: number;
+	top: number;
+	right: number;
+	bottom: number;
+}
+export function overlaps(a: Box, b: Box): boolean {
+	return (
+		Math.max(a.left, b.left) < Math.min(a.right, b.right) &&
+		Math.max(a.top, b.top) < Math.min(a.bottom, b.bottom)
+	);
+}
+
 // ── Panning ──────────────────────────────────────────────────────────────────
 
 // Fling deceleration: velocity is multiplied by this every millisecond, iOS's

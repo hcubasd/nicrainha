@@ -8,6 +8,7 @@ import {
 	DEFAULT_SPEED,
 	flingTravel,
 	flingVelocity,
+	overlaps,
 	STOPPED_TIME,
 	VELOCITY_WINDOW,
 } from "./model.js";
@@ -313,14 +314,15 @@ export class NicrainhaBackground extends Base {
 		}
 	};
 
-	// The glass panels among the children, in device px. A panel's size and
-	// position are its layout box; its corner radius is its border radius,
-	// at most half its shorter side.
+	// The glass panels among the children that are in view, in device px. A
+	// panel's size and position are its layout box; its corner radius is its
+	// border radius, at most half its shorter side. Panels out of view are
+	// left out: they would change no pixel, yet every pixel would test them.
 	#panels(): Panel[] {
 		const dpr = devicePixelRatio;
 		const origin = this.getBoundingClientRect();
-		return [...this.querySelectorAll("nicrainha-glass")].map((glass) => {
-			const box = glass.getBoundingClientRect();
+		const boxes = [...this.querySelectorAll("nicrainha-glass")].map((glass) => ({ glass, box: glass.getBoundingClientRect() }));
+		return boxes.filter(({ box }) => overlaps(box, origin)).map(({ glass, box }) => {
 			const radius = getComputedStyle(glass).borderTopLeftRadius;
 			const length = parseFloat(radius) || 0;
 			const px = radius.endsWith("%") ? (length / 100) * box.width : length;

@@ -6,7 +6,7 @@ import { DEFAULT_LIGHTNESS, generatePalettes } from "../colors.js";
 import { cellSize, colorStep, GAP_RATIO, IOR, MIN_RADIUS, TABLE_ROWS } from "./model.js";
 import { buildPermutation, maxDensity } from "./noise.js";
 import { largestPalette } from "./palette.js";
-import { fragmentShader, MAX_PANELS, vertexShader } from "./shaders.js";
+import { fragmentShader, vertexShader } from "./shaders.js";
 import * as tables from "./tables.data.js";
 
 // A glass panel in device px: (x, y) its center in the canvas.
@@ -86,8 +86,7 @@ export function createRenderer(canvas: HTMLCanvasElement, lightness: number): Re
 	setLightness(lightness);
 
 	let z = 0;
-	const panelBox = new Float32Array(4 * MAX_PANELS);
-	const panelRadius = new Float32Array(MAX_PANELS);
+	const maxWidth: number = gl.getParameter(gl.MAX_TEXTURE_SIZE);
 
 	function draw(panels: readonly Panel[], steps: number): void {
 		const { width, height } = canvas;
@@ -97,15 +96,16 @@ export function createRenderer(canvas: HTMLCanvasElement, lightness: number): Re
 		gl.uniform1f(uniform.u_cell, cellSize(width, height));
 		z = (z + steps * step) % PERIOD;
 		gl.uniform1f(uniform.u_z, z);
-		const count = Math.min(panels.length, MAX_PANELS);
-		for (let i = 0; i < count; i++) {
-			const { x, y, halfWidth, halfHeight, radius } = panels[i];
-			panelBox.set([x, y, halfWidth, halfHeight], 4 * i);
-			panelRadius[i] = radius;
-		}
-		gl.uniform1i(uniform.u_panelCount, count);
-		gl.uniform4fv(uniform.u_panelBox, panelBox);
-		gl.uniform1fv(uniform.u_panelRadius, panelRadius);
+		// The panels, two texels each, in rows as wide as WebGL allows.
+		const texels = Math.max(2 * panels.length, 1);
+		const columns = Math.min(texels, maxWidth);
+		const rows = Math.ceil(texels / columns);
+		const data = new Float32Array(4 * columns * rows);
+		panels.forEach(({ x, y, halfWidth, halfHeight, radius }, i) => {
+			data.set([x, y, halfWidth, halfHeight, radius], 8 * i);
+		});
+		texture(uniform.u_panels, 4, gl.RGBA32F, gl.RGBA, gl.FLOAT, data, columns, rows);
+		gl.uniform1i(uniform.u_panelCount, panels.length);
 		gl.uniform1f(uniform.u_minRadius, MIN_RADIUS);
 		gl.drawArrays(gl.TRIANGLES, 0, 3);
 	}
