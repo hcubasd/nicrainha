@@ -1,0 +1,22 @@
+[
+	{ "name": "Inter", "role": "sans", "preamble": "\\usepackage[sfdefault]{inter}" },
+	{ "name": "Roboto", "role": "sans", "preamble": "\\usepackage[sfdefault]{roboto}" },
+	{ "name": "Source Sans", "role": "sans", "preamble": "\\usepackage[default]{sourcesanspro}" },
+	{ "name": "IBM Plex Sans", "role": "sans", "preamble": "\\usepackage[sfdefault]{plex-sans}" },
+	{ "name": "Fira Sans", "role": "sans", "preamble": "\\usepackage[sfdefault]{FiraSans}" },
+	{ "name": "Libertinus", "role": "serif", "preamble": "\\usepackage{libertinus}\n\\renewcommand\\familydefault{\\rmdefault}" },
+	{ "name": "EB Garamond", "role": "serif", "preamble": "\\usepackage{ebgaramond}\n\\renewcommand\\familydefault{\\rmdefault}" },
+	{ "name": "Source Serif", "role": "serif", "preamble": "\\usepackage{sourceserifpro}\n\\renewcommand\\familydefault{\\rmdefault}" },
+	{ "name": "IBM Plex Serif", "role": "serif", "preamble": "\\usepackage{plex-serif}\n\\renewcommand\\familydefault{\\rmdefault}" },
+	{ "name": "Times-like (newtx)", "role": "serif", "preamble": "\\usepackage{newtxtext}\n\\renewcommand\\familydefault{\\rmdefault}" },
+	{ "name": "Palatino-like (newpx)", "role": "serif", "preamble": "\\usepackage{newpxtext}\n\\renewcommand\\familydefault{\\rmdefault}" },
+	{ "name": "IBM Plex Mono", "role": "mono", "preamble": "\\usepackage{plex-mono}" },
+	{ "name": "Fira Mono", "role": "mono", "preamble": "\\usepackage{FiraMono}" },
+	{ "name": "Source Code Pro", "role": "mono", "preamble": "\\usepackage{sourcecodepro}" },
+	{ "name": "Inconsolata", "role": "mono", "preamble": "\\usepackage{inconsolata}" },
+	{ "name": "Times-like math (newtx)", "role": "math", "preamble": "\\usepackage{newtxmath}" },
+	{ "name": "Palatino-like math (newpx)", "role": "math", "preamble": "\\usepackage{newpxmath}" },
+	{ "name": "Euler", "role": "math", "preamble": "\\usepackage{eulervm}" },
+	{ "name": "Libertinus Math", "role": "math", "preamble": "\\usepackage{libertinust1math}" },
+	{ "name": "Math in the text font (mathastext)", "role": "math", "preamble": "\\usepackage{mathastext}" }
+]

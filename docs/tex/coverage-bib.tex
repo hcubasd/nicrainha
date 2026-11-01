@@ -1,0 +1,18 @@
+% BibTeX coverage: scripts/texbundle.mjs compiles this once per
+% bibliography style, STYLE replaced by the style's name.
+\begin{filecontents*}[overwrite]{coverage.bib}
+@article{article, author = {Ken Perlin}, title = {Improving Noise}, journal = {ACM Transactions on Graphics}, year = {2002}, volume = {21}, number = {3}, pages = {681--682}}
+@book{book, author = {{CIE}}, title = {Colorimetry}, publisher = {CIE}, year = {2004}, edition = {Third}}
+@inproceedings{inproceedings, author = {Gaurav Sharma and Wencheng Wu and Edul N. Dalal}, title = {The {CIEDE2000} Color-Difference Formula}, booktitle = {Color Research and Application}, year = {2005}}
+@misc{misc, author = {Jack Bresenham}, title = {Algorithm for computer control of a digital plotter}, howpublished = {IBM Systems Journal}, year = {1965}}
+\end{filecontents*}
+\documentclass{nicrainha}
+\begin{document}
+\begin{slide}{Citations}
+  \cite{article,book,inproceedings,misc}
+\end{slide}
+\begin{slide}{References}
+  \bibliographystyle{STYLE}
+  \bibliography{coverage}
+\end{slide}
+\end{document}

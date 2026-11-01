@@ -1,0 +1,50 @@
+/zpl_TOsFEnc [
+%00
+  /.notdef /.notdef /.notdef /.notdef /.notdef /.notdef /.notdef /.notdef
+  /.notdef /.notdef /.notdef /cedilla /ogonek /quotesinglbase /bar /exclamdown
+%10
+  /questiondown /endash /quotedblbase /.notdef /.notdef /.notdef /threequartersemdash /.notdef
+  /uni2190 /uni2192 /tieaccentlowercase /tieaccentcapital /.notdef /.notdef /.notdef /.notdef
+%20
+  /uni2423 /.notdef /.notdef /.notdef /dollar.oldstyle /.notdef /.notdef /quotesingle
+  /.notdef /.notdef /uni2017 /.notdef /comma /hyphendbl /period /fraction
+%30
+  /zero.taboldstyle /one.taboldstyle /two.taboldstyle /three.taboldstyle /four.taboldstyle /five.taboldstyle /six.taboldstyle /seven.taboldstyle
+  /eight.taboldstyle /nine.taboldstyle /.notdef /.notdef /angleleft /minus /angleright /.notdef
+%40
+  /.notdef /.notdef /.notdef /.notdef /.notdef /.notdef /.notdef /.notdef
+  /.notdef /.notdef /.notdef /.notdef /.notdef /uni2127 /.notdef /bigcircle
+%50
+  /.notdef /.notdef /.notdef /.notdef /.notdef /.notdef /.notdef /ohm
+  /.notdef /.notdef /.notdef /.notdef /.notdef /.notdef /uni2191 /uni2193
+%60
+  /.notdef /.notdef /.notdef /divorced /died /.notdef /.notdef /.notdef
+  /.notdef /.notdef /.notdef /.notdef /leaf /married /uni266A /.notdef
+%70
+  /.notdef /.notdef /.notdef /.notdef /.notdef /.notdef /.notdef /.notdef
+  /.notdef /.notdef /.notdef /.notdef /.notdef /.notdef /.notdef /.notdef
+%80
+  /.notdef /.notdef /.notdef /.notdef /uni2020 /uni2021 /.notdef /perthousand
+  /bullet /centigrade /dollar.oldstyle /cent.oldstyle /florin /colonmonetary /won /naira
+%90
+  /guarani /peso /lira /recipe /interrobang /.notdef /dong /trademark
+  /permyriad /.notdef /baht /numero /discount /estimated /openbullet /servicemark
+%A0
+  /quillbracketleft /quillbracketright /cent.oldstyle /sterling /currency /yen /brokenbar /uni00A7
+  /.notdef /copyright /ordfeminine /copyleft /logicalnot /.notdef /registered /.notdef
+%B0
+  /degree /plusminus /two.sups /three.sups /.notdef /uni00B5 /uni00B6 /periodcentered
+  /referencemark /one.sups /ordmasculine /radical /onequarter /onehalf /threequarters /Euro
+%C0
+  /.notdef /.notdef /.notdef /.notdef /.notdef /.notdef /.notdef /.notdef
+  /.notdef /.notdef /.notdef /.notdef /.notdef /.notdef /.notdef /.notdef
+%D0
+  /.notdef /.notdef /.notdef /.notdef /.notdef /.notdef /multiply /.notdef
+  /.notdef /.notdef /.notdef /.notdef /.notdef /.notdef /.notdef /.notdef
+%E0
+  /.notdef /.notdef /.notdef /.notdef /.notdef /.notdef /.notdef /.notdef
+  /.notdef /.notdef /.notdef /.notdef /.notdef /.notdef /.notdef /.notdef
+%F0
+  /.notdef /.notdef /.notdef /.notdef /.notdef /.notdef /divide /.notdef
+  /.notdef /.notdef /.notdef /.notdef /.notdef /.notdef /.notdef /.notdef
+] def

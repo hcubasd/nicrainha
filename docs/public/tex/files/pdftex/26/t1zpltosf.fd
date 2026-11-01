@@ -1,0 +1,40 @@
+\ProvidesFile{t1zpltosf.fd}[2021/05/25 v1.0 font definition file for T1/zpl/tosf]
+
+\@ifundefined{ifzpl@sl}{\global\let\ifzpl@sl\iftrue}{}
+
+\expandafter\ifx\csname zpl@scaled\endcsname\relax
+  \global\let\zpl@scaled\@empty%
+\fi
+\def\zpl@asfx{}
+\gdef\zpl@lsfx{}
+\def\zpl@makelsfx{\ifzpl@largesc\gdef\zpl@lsfx{l}\fi}
+\def\zpl@makeadobesc{\ifzpl@adobesc\gdef\zpl@lsfx{l}\def\zpl@adobesc{a}\else\zpl@makelsfx\fi}
+\ifdefined\zpl@adobescfalse\zpl@makeadobesc\fi
+\ifdefined\zpl@spacing \else\global\let\zpl@spacing\@empty\fi
+
+\DeclareFontFamily{T1}{zpltosf}{\zpl@spacing}
+\DeclareFontShape{T1}{zpltosf}{b}{sc}{<-> \zpl@scaled zpl-Bold-tosf-sc\zpl@lsfx\zpl@asfx-t1}{}
+\DeclareFontShape{T1}{zpltosf}{b}{n}{<-> \zpl@scaled zpl-Bold-tosf-t1}{}
+\DeclareFontShape{T1}{zpltosf}{b}{scit}{<-> \zpl@scaled zpl-BoldItalic-tosf-sc\zpl@lsfx-t1}{}
+\DeclareFontShape{T1}{zpltosf}{b}{it}{<-> \zpl@scaled zpl-BoldItalic-tosf-t1}{}
+\DeclareFontShape{T1}{zpltosf}{m}{sc}{<-> \zpl@scaled zpl-Regular-tosf-sc\zpl@lsfx\zpl@asfx-t1}{}
+\DeclareFontShape{T1}{zpltosf}{m}{n}{<-> \zpl@scaled zpl-Regular-tosf-t1}{}
+\DeclareFontShape{T1}{zpltosf}{m}{scit}{<-> \zpl@scaled zpl-Italic-tosf-sc\zpl@lsfx-t1}{}
+\DeclareFontShape{T1}{zpltosf}{m}{it}{<-> \zpl@scaled zpl-Italic-tosf-t1}{}
+\DeclareFontShape{T1}{zpltosf}{bx}{sc}{<->ssub * zpltosf/b/sc}{}
+\DeclareFontShape{T1}{zpltosf}{bx}{n}{<->ssub * zpltosf/b/n}{}
+\DeclareFontShape{T1}{zpltosf}{bx}{scit}{<->ssub * zpltosf/b/scit}{}
+\DeclareFontShape{T1}{zpltosf}{bx}{it}{<->ssub * zpltosf/b/it}{}
+\ifzpl@sl % point to real slanted fonts
+  \DeclareFontShape{T1}{zpltosf}{m}{sl}{<-> \zpl@scaled zpl-Slanted-tosf-t1}{}
+  \DeclareFontShape{T1}{zpltosf}{b}{sl}{<-> \zpl@scaled zpl-BoldSlanted-tosf-t1}{}
+  \DeclareFontShape{T1}{zpltosf}{bx}{sl}{<->ssub * zpltosf/b/sl}{}
+\else %point to theorem font
+  \DeclareFontShape{T1}{zpltosf}{m}{sl}{<-> \zpl@scaled zplth-Italic-osf-t1}{}
+  \DeclareFontShape{T1}{zpltosf}{b}{sl}{<->ssub * zpltosf/m/sl}{}
+  \DeclareFontShape{T1}{zpltosf}{bx}{sl}{<->ssub * zpltosf/m/sl}{}
+\fi
+\DeclareFontShape{T1}{zpltosf}{b}{scsl}{<->ssub * zpltosf/b/scit}{}
+\DeclareFontShape{T1}{zpltosf}{bx}{scsl}{<->ssub * zpltosf/b/scit}{}
+\DeclareFontShape{T1}{zpltosf}{m}{scsl}{<->ssub * zpltosf/m/scit}{}
+\endinput

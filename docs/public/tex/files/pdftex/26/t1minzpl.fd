@@ -1,0 +1,38 @@
+\ProvidesFile{t1minzpl.fd}[2021/05/25 v1.0 font definition file for T1/minzpl/TLF]
+
+\@ifundefined{ifzpl@sl}{\global\let\ifzpl@sl\iftrue}{}
+
+\expandafter\ifx\csname zpl@scaled\endcsname\relax
+  \global\let\zpl@scaled\@empty%
+\fi
+\gdef\zpl@lsfx{}
+\def\zpl@makelsfx{\ifzpl@largesc\gdef\zpl@lsfx{l}\fi}
+\ifdefined\zpl@largescfalse \zpl@makelsfx\fi
+\ifdefined\zpl@spacing \else\global\let\zpl@spacing\@empty\fi
+
+\DeclareFontFamily{T1}{minzpl}{\zpl@spacing}
+\DeclareFontShape{T1}{minzpl}{b}{sc}{<-> \zpl@scaled zpl-Bold-tlf-sc\zpl@lsfx-t1}{}
+\DeclareFontShape{T1}{minzpl}{b}{n}{<-> \zpl@scaled zpl-Bold-tlf-t1}{}
+\DeclareFontShape{T1}{minzpl}{b}{scit}{<-> \zpl@scaled zpl-BoldItalic-tlf-sc\zpl@lsfx-t1}{}
+\DeclareFontShape{T1}{minzpl}{b}{it}{<-> \zpl@scaled zpl-BoldItalic-tlf-t1}{}
+\DeclareFontShape{T1}{minzpl}{m}{sc}{<-> \zpl@scaled zpl-Regular-tlf-sc\zpl@lsfx-t1}{}
+\DeclareFontShape{T1}{minzpl}{m}{n}{<-> \zpl@scaled zpl-Regular-tlf-t1}{}
+\DeclareFontShape{T1}{minzpl}{m}{scit}{<-> \zpl@scaled zpl-Italic-tlf-sc\zpl@lsfx-t1}{}
+\DeclareFontShape{T1}{minzpl}{m}{it}{<-> \zpl@scaled zpl-Italic-tlf-t1}{}
+\DeclareFontShape{T1}{minzpl}{bx}{sc}{<->ssub * minzpl/b/sc}{}
+\DeclareFontShape{T1}{minzpl}{bx}{n}{<->ssub * minzpl/b/n}{}
+\DeclareFontShape{T1}{minzpl}{bx}{scit}{<->ssub * minzpl/b/scit}{}
+\DeclareFontShape{T1}{minzpl}{bx}{it}{<->ssub * minzpl/b/it}{}
+\ifzpl@sl % point to real slanted fonts
+  \DeclareFontShape{T1}{minzpl}{m}{sl}{<-> \zpl@scaled zpl-Slanted-tlf-t1}{}
+  \DeclareFontShape{T1}{minzpl}{b}{sl}{<-> \zpl@scaled zpl-BoldSlanted-tlf-t1}{}
+  \DeclareFontShape{T1}{minzpl}{bx}{sl}{<->ssub * minzpl/b/sl}{}
+\else %point to theorem font
+  \DeclareFontShape{T1}{minzpl}{m}{sl}{<-> \zpl@scaled zplth-Italic-tlf-t1}{}
+  \DeclareFontShape{T1}{minzpl}{b}{sl}{<->ssub * minzpl/m/sl}{}
+  \DeclareFontShape{T1}{minzpl}{bx}{sl}{<->ssub * minzpl/m/sl}{}
+\fi
+\DeclareFontShape{T1}{minzpl}{b}{scsl}{<->ssub * minzpl/b/scit}{}
+\DeclareFontShape{T1}{minzpl}{m}{scsl}{<->ssub * minzpl/m/scit}{}
+\DeclareFontShape{T1}{minzpl}{bx}{scsl}{<->ssub * minzpl/b/scit}{}
+\endinput

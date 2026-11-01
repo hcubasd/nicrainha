@@ -9,7 +9,8 @@ on the constant-`L*` plane that fits inside the sRGB gamut. Subsets of that
 polygon are maximally spread color palettes. All public APIs use `RgbColor`
 (`{ r, g, b }` integers in `[0, 255]`) — Lab is internal machinery.
 
-Showcase: https://hcubasd.github.io/nicrainha/
+Showcase: https://hcubasd.github.io/nicrainha/, LaTeX slides over a nicrainha
+background ([below](#showcase-latex-slides)).
 
 ## Install
 
@@ -286,6 +287,32 @@ $\sigma : [n] \to [n]$ minimising $\sum_i d_{i,\sigma(i)}$.
 from the rotation with the smallest total cost, so large inputs are slow
 (about 0.4 s for 128 colors).
 
+## Showcase: LaTeX slides
+
+The showcase, in `docs/`, is a slide viewer built on the background and glass:
+drop a LaTeX deck on the page and it compiles in the browser and shows over a
+nicrainha background, each slide's title on glass and its body on the bare
+background. It's an example of a UI built with the library, not part of the
+npm package.
+
+- **Decks** are one `.tex` file with the showcase's class, `nicrainha.cls`:
+  beamer's 16:9 page, a `slide` environment, `\maketitle`. Everything else
+  is plain LaTeX, with `amsmath`, `amssymb`, `booktabs`, `graphicx`,
+  `color`, TikZ, BibTeX and a catalog of 20 font families. The example is
+  [`docs/tex/nicrainha.tex`](docs/tex/nicrainha.tex), on nicrainha's own
+  color science.
+- **TeX** is pdfTeX compiled to WebAssembly (SwiftLaTeX), in a worker, with
+  every file it needs preloaded or fetched from the site. Nothing leaves the
+  browser.
+- **The log** is offered after each compile. Errors and warnings, overfull
+  boxes and slides too full included, come in TeX's own words: an agent
+  writing the deck can fix them from it.
+- **The PDF** puts each slide on its own background, a fresh one, glass and
+  all, captured losslessly with `capture()`, under TeX's vector page.
+
+See [`docs/README.md`](docs/README.md) for using it, writing decks and
+rebuilding the TeX files.
+
 ## Repo structure
 
 ```
@@ -308,6 +335,10 @@ src/
     tables.ts          — the build-time lookup tables
 scripts/
   tables.js            — writes the tables into dist/ui at build time
+docs/                  — the showcase, its own Vite project (docs/README.md)
+  main.js, tex.js      — the slide viewer and its TeX engine client
+  tex/                 — nicrainha.cls, the example deck, coverage decks, fonts
+  public/              — the engine, the preloaded TeX bundle, the font catalog
 tests/
   colors.spec.ts
   helpers.spec.ts

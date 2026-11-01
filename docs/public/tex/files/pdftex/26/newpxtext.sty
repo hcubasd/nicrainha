@@ -1,0 +1,822 @@
+\NeedsTeXFormat{LaTeX2e}
+
+% Based originally on Young Ryu's pxfonts.sty, v.1.1.1
+%
+% Changes from original pxfonts.sty by Michael Sharpe, msharpe at ucsd dot edu;
+% Text and math versions now separate. 
+% Added scaled keyword and osf option;
+% Text is now directed to an extension of TeXGyrePagella rather than ppl.
+% 1.5 is first version of newpxtext to support both [pdf]latex and unicode latex.
+%
+\def\fileversion{1.541}
+\def\filedate{2025/02/10}
+\ProvidesPackage{newpxtext}[%
+\filedate\space v\fileversion (Michael Sharpe) latex and unicode latex support for TeXGyrePagellaX]
+
+\message{`newpxtext' v\fileversion, \filedate\space Text macros taking advantage of TeXGyre Pagella and its extensions (msharpe)}
+
+\RequirePackage[T1]{fontenc}
+\RequirePackage{xcolor}
+
+\RequirePackage{xpatch} % need to patch \scshape
+\RequirePackage{iftex,xkeyval,etoolbox,textcomp}
+\RequirePackage{xstring,ifthen,scalefnt} % for \textfrac
+\IfFileExists{mweights.sty}{\RequirePackage{mweights}}{}
+
+%KOMA check
+\newif\ifzpl@KOMA
+\@ifundefined{KOMAClassName}{}{\zpl@KOMAtrue}
+\@ifundefined{ver@scrextend.sty}{}{\zpl@KOMAtrue}
+\newif\ifzpl@LTX
+\@ifclassloaded{article}{\zpl@LTXtrue}{}
+\@ifclassloaded{report}{\zpl@LTXtrue}{}
+\@ifclassloaded{book}{\zpl@LTXtrue}{}
+
+% Engine check
+\newif\ifzpl@otf
+\iftutex
+  \zpl@otftrue
+\else
+  \DeclareEncodingSubset{TS1}{zpl*}{0}
+\fi
+\@ifundefined{newpx@otfmathtrue}{\newif\ifnewpx@otfmath}{}
+
+\def\zpl@divide#1#2{\strip@pt\dimexpr 1pt * (\dimexpr #1pt\relax) / \dimexpr #2pt\relax\relax}
+%%%%%%%%%%%%%%%%%%
+\IfFileExists{xkeyval.sty}{
+    \RequirePackage{xkeyval}
+ }{
+    \let\DeclareOptionX\DeclareOption
+    \let\ExecuteOptionsX\ExecuteOptions
+    \let\ProcessOptionsX\ProcessOptions
+}
+%%%% Start Options
+\newif\ifzpl@nomath\zpl@nomathfalse % load fontspec with no-math
+\newif\ifzpl@lining\zpl@liningtrue
+\newif\ifzpl@tabular\zpl@tabulartrue % default is tabular lining figures
+%\@ifundefined{ver@newpxmath.sty}{}{\zpl@nomathtrue}
+
+\DeclareOptionX{type1}[true]{%
+%\@nameuse{if#1}\zpl@otffalse\fi
+}
+\DeclareOptionX{nofontspec}[true]{%
+%\@nameuse{if#1}\zpl@otffalse\fi
+}
+\DeclareOptionX{no-math}[true]{%
+\@nameuse{if#1}\zpl@nomathtrue\fi
+}
+
+\def\zpl@defaultfeatures{}
+\DeclareOptionX{defaultfeatures}{\def\zpl@defaultfeatures{#1}}
+
+%Figure style options
+\edef\zpl@dfltfigurestyle{lf}
+\edef\zpl@dfltfigurealign{t}
+
+\DeclareOptionX{lining}[true]{%
+\@nameuse{zpl@lining#1}
+}
+\DeclareOptionX{lf}[true]{%
+\@nameuse{zpl@lining#1}
+}
+\DeclareOptionX{oldstyle}[true]{%
+\@nameuse{if#1}%
+  \zpl@liningfalse
+\else
+  \zpl@liningtrue
+\fi
+}
+\DeclareOptionX{osf}[true]{%
+\@nameuse{if#1}%
+  \zpl@liningfalse
+\else
+  \zpl@liningtrue
+\fi
+}
+\DeclareOptionX{tabular}[true]{%
+\@nameuse{zpl@tabular#1}
+}
+\DeclareOptionX{t}[true]{%
+\@nameuse{zpl@tabular#1}
+}
+\DeclareOptionX{proportional}[true]{%
+\@nameuse{if#1}%
+  \zpl@tabularfalse
+\else
+  \zpl@tabulartrue
+\fi
+}
+\DeclareOptionX{p}[true]{%
+\@nameuse{if#1}%
+  \zpl@tabularfalse
+\else
+  \zpl@tabulartrue
+\fi
+}
+
+%Scale
+\providecommand{\zpl@scale}{1}  % actual scaled command in \zpl@scaled
+\DeclareOptionX{scale}{\def\zpl@scale{#1}}
+\DeclareOptionX{scaled}{\def\zpl@scale{#1}}
+
+\newif\ifzpl@defaultsups
+%\newif\ifzpl@adobesc % we don't use this exc. in fd, but may in future
+\newif\ifzpl@scosf
+\newif\ifzpl@largesc 
+\newif\ifzpl@helv \zpl@helvtrue % default is to load helvetica as sans serif font
+\newif\ifzpl@tt \zpl@tttrue % default is to load npxtt
+\newif\ifzpl@thrm
+\newif\ifzpl@sl 
+% new sups options
+%\newdimen\zplsups@scale
+%\newdimen\zplsups@raise
+%\def\zplsups@raised{\z@}
+%\def\zplsups@Lspaced{.04em}
+%\def\zplsups@Rspaced{.04em}
+%\def\zplsups@scaledval{1.0}
+%\def\zplsups@scalefactor{1}
+%\newcommand*{\zplsups@color}{black}
+\newif\ifzpl@supsflag
+\DeclareOptionX{supscaled}{\zpl@supsflagtrue}%{\renewcommand*{\zplsups@scaledval}{#1}}
+\DeclareOptionX{supscale}{\zpl@supsflagtrue}%{\renewcommand*{\zplsups@scaledval}{#1}}
+\DeclareOptionX{supsraised}{\zpl@supsflagtrue}%{\renewcommand*{\zplsups@raised}{#1}}
+\DeclareOptionX{supLspaced}{\zpl@supsflagtrue}%{\renewcommand*{\zplsups@Lspaced}{#1}}
+\DeclareOptionX{supRspaced}{\zpl@supsflagtrue}%{\renewcommand*{\zplsups@Rspaced}{#1}}
+\DeclareOptionX{supspaced}{\zpl@supsflagtrue}%\DeclareOptionX{supscolor}{\zpl@supsflagtrue}%{\renewcommand*{\zplsups@color}{#1}}
+
+% Other options
+\DeclareOptionX{otfmath}[true]{%
+\@nameuse{if#1}\newpx@otfmathtrue\fi
+}
+\DeclareOptionX{defaultsups}[true]{%
+\@nameuse{zpl@defaultsups#1}
+}
+\DeclareOptionX{babel}[true]{%
+\@nameuse{zpl@babel#1}% for backward compatibility
+}
+\DeclareOptionX{largesc}[true]{%
+\@nameuse{zpl@largesc#1}
+}
+\DeclareOptionX{nohelv}[true]{%
+\@nameuse{if#1}\zpl@helvfalse\fi}%
+\DeclareOptionX{nott}[true]{%
+\@nameuse{if#1}\zpl@ttfalse\fi}%
+
+\providecommand\zpl@helvratio{.94}
+\DeclareOptionX{helvratio}[0.94]{%
+\def\zpl@helvratio{#1}
+}
+\def\zpl@spcmag{1}
+\def\zpl@spc{.25em}
+\def\zpl@stretch{.2em}
+\def\zpl@shrink{.1em}
+\def\zpl@nospc{T}
+
+\DeclareOptionX{spcfactor}{%
+\def\zpl@spcmag{#1}\def\zpl@nospc{F}
+}
+\DeclareOptionX{spacing}{%
+\def\zpl@spc{#1}
+}
+\DeclareOptionX{stretch}{%
+\def\zpl@stretch{#1}
+}
+\DeclareOptionX{shrink}{%
+\def\zpl@shrink{#1}
+}
+\newcount\zpl@cnt \zpl@cnt=0
+\newif\ifzpl@zeroslash
+\newif\ifzpl@notextnu
+\def\zpl@thmlin{X} % default is to not change to lining
+\def\zpl@noti{T}\def\zpl@nolo{T}
+\DeclareOptionX{oldSS}{\advance\zpl@cnt 32 }
+\DeclareOptionX{notextnu}{\zpl@notextnutrue}
+\DeclareOptionX{slashedzero}{\zpl@zeroslashtrue}
+\DeclareOptionX{theoremfont}{\zpl@thrmtrue }
+\DeclareOptionX{thmlining}{\edef\zpl@thmlin{l}}
+\DeclareOptionX{trueslanted}{\zpl@sltrue}
+\DeclareOptionX{scosf}{\zpl@scosftrue}
+\DeclareOptionX{tighter}{% 
+\gdef\zpl@spc{.25em}\gdef\zpl@stretch{.125em}%
+\gdef\zpl@shrink{.1em}\def\zpl@noti{F}}
+\DeclareOptionX{looser}{%
+\gdef\zpl@spc{.3em}\gdef\zpl@stretch{.2em}%
+\gdef\zpl@shrink{.1em}\def\zpl@nolo{F}}
+
+\DeclareOptionX{sfracvcenter}{%
+\def\zpl@sfrVC{#1}}
+\DeclareOptionX{sfracvspacing}{%
+\def\zpl@sfrVS{#1}}
+\DeclareOptionX{sfracbarthick}{%
+\def\zpl@sfrTH{#1}}
+\DeclareOptionX{sfracscaling}{%
+\def\zpl@sfrSC{#1}}
+
+\ProcessOptionsX\relax
+
+\ifzpl@supsflag%
+\PackageWarningNoLine{newpxtext}{sups options no longer handled---use superiors package (v2) instead.}\fi
+
+% otfmath beats no-math
+\ifnewpx@otfmath\zpl@nomathfalse\fi
+
+\iftutex\else
+\renewcommand*{\rmdefault}{minzpl} % the default until end of preamble
+\renewcommand*{\familydefault}{\rmdefault}
+\fi
+\ifzpl@nomath
+\renewcommand*{\rmdefault}{minzpl} % the default until end of preamble
+\renewcommand*{\familydefault}{\rmdefault}
+\fi
+
+\ifthenelse{\not\equal{\sfdefault}{cmss}}%
+  {\zpl@helvfalse}{}
+\ifthenelse{\not\equal{\ttdefault}{cmtt}}%
+  {\zpl@ttfalse}{}
+\ifzpl@helv\renewcommand*{\sfdefault}{qhv}\fi
+\ifzpl@tt\renewcommand*{\ttdefault}{npxtt}\fi
+%\setlength{\zplsups@raise}{\zplsups@raised}
+%\setlength{\zplsups@scale}{\zplsups@scaledval\p@}
+%\zplsups@scale=\zpl@scale\zplsups@scale %
+%\def\zplsups@scalefactor{\strip@pt\zplsups@scale}
+%\def\zplsups@scaled{s*[\strip@pt\zplsups@scale]}
+% for stacked fractions
+\@ifundefined{zpl@xht}{\def\zpl@xht{460}}{} % lowercase letters
+\@ifundefined{zpl@deht}{\def\zpl@deht{412}}{} % denominator figures ht
+\@ifundefined{zpl@nubase}{\def\zpl@nubase{270}}{} % baseline of numerators
+\@ifundefined{zpl@debase}{\def\zpl@debase{0}}{} % baseline of denoms
+\@ifundefined{zpl@sfrVC}{\def\zpl@sfrVC{335}}{}% vertical center of sfrac
+\@ifundefined{zpl@sfrVS}{\def\zpl@sfrVS{106}}{} % space above/below bar
+\@ifundefined{zpl@sfrTH}{\def\zpl@sfrTH{52}}{} % bar thickness
+\@ifundefined{zpl@sfrSC}{\def\zpl@sfrSC{.9}}{} % scale defigures by this
+
+\def\re@DeclareTextSymbol#1#2#3{%
+   \let#1=\undefined
+   \DeclareTextSymbol{#1}{#2}{#3}}
+
+\ifzpl@otf   
+  \ifzpl@nomath
+    \RequirePackage[no-math]{fontspec}
+  \else
+    \RequirePackage{fontspec}
+  \fi
+
+  %\ifxetex\XeTeXtracingfonts=1\fi % causing unwanted warnings in Tectonic system
+
+  \ifluatex  % avoid possibly uncorrected "system" fonts
+    \directlua{fonts.names.set_location_precedence{
+        "local", "texmf", "system" }}
+  \fi
+  \def\zpl@base{TeXGyrePagellaX}
+ \ifzpl@scosf
+   \AtBeginDocument{%
+	   \xpretocmd{\scshape}
+	   {\addfontfeatures{Numbers=OldStyle}}
+	   {}{}%
+   }%
+ \fi
+
+  \newcommand{\textfrac}[3][]{{%\normalfont%
+\mbox{%
+    \ifthenelse{\not\equal{#1}{}}%Test for integer portion [optional #1]
+      {{\lfstyle#1}\kern.1em}{}%
+\addfontfeatures{RawFeature=+numr}#2\char"2044% numerator
+\addfontfeatures{RawFeature=-numr;+dnom;+ss20}\char"2044{}#3% 
+}}}
+  
+\else % type1
+ \ifzpl@scosf
+  	\AtBeginDocument{%
+	    \xpretocmd{\scshape}
+  	     {\fontfamily{zpl\zpl@figurealign osf}}
+  	     {}{}%
+	}%
+  \fi%
+   \DeclareRobustCommand{\sustyle}{%
+   \not@math@alphabet\sustyle\relax
+   \fontfamily{zplsups}\selectfont}
+	\let\supstyle\sustyle
+	
+%\ifdim\zplsups@raise=\z@
+	\DeclareRobustCommand{\textsups}[1]{{\supstyle#1}}
+%\else
+%	\DeclareRobustCommand{\textsups}[1]{%
+%	\raisebox{\zplsups@raise}{\hbox{{\supstyle#1}}}}
+%\fi
+
+\RequirePackage{fontaxes}
+    \fa@naming@exception{figures}{{superior}{proportional}}{sups}
+    \fa@naming@exception{figures}{{superior}{tabular}}{sups}
+%    \def\sufigures{\@nomath\sufigures
+%        \fontfigurestyle{superior}\selectfont}
+%     \let\sustyle=\sufigures
+%    \DeclareTextFontCommand{\textsu}{\sufigures}
+   \let\sufigures=\sustyle
+   
+    \fa@naming@exception{figures}{{inferior}{proportional}}{inf}
+     \fa@naming@exception{figures}{{inferior}{tabular}}{inf}
+%    \def\infigures{\@nomath\infigures
+%        \fontfigurestyle{inferior}\selectfont}
+%     \let\instyle=\infigures
+%    \DeclareTextFontCommand{\textinf}{\infigures}
+%    \let\textinferior\textinf
+   \DeclareRobustCommand{\infstyle}{%
+   \not@math@alphabet\instyle\relax
+   \fontfamily{zplsubs}\selectfont}
+   \let\infigures=\infstyle
+	\let\instyle\infstyle
+	
+    \fa@naming@exception{figures}{{denominators}{proportional}}{dnom}
+    \fa@naming@exception{figures}{{denominators}{tabular}}{dnom}
+%    \def\defigures{\@nomath\defigures
+%        \fontfamily{defigures}\selectfont}
+%     \let\destyle=\defigures
+%    \DeclareTextFontCommand{\textde}{\defigures}
+%    \let\textdenominators\textde
+  \DeclareRobustCommand{\destyle}{%
+   \not@math@alphabet\destyle\relax
+   \fontfamily{zpldnom}\selectfont}
+   \let\defigures=\destyle
+
+    \fa@naming@exception{figures}{{numerators}{proportional}}{numr}
+    \fa@naming@exception{figures}{{numerators}{tabular}}{numr}
+%    \def\defigures{\@nomath\nufigures
+%        \fontfigurestyle{numerators}\selectfont}
+%     \let\nustyle=\nufigures
+%    \DeclareTextFontCommand{\textnu}{\nufigures}
+%    \let\textnumerators\textnu
+  \DeclareRobustCommand{\nustyle}{%
+   \not@math@alphabet\nustyle\relax
+   \fontfamily{zplnumr}\selectfont}
+   \let\nufigures=\nustyle
+
+\newcommand{\textfrac}[3][]{% like \textfrac[1]{7}{8}
+  \mbox{%
+    \ifthenelse{\not\equal{#1}{}}%Test for integer portion [optional #1]
+      {\textlf{#1}\kern.1em}{}%         
+    {\nustyle#2}% numerator
+    \StrRight{#2}{1}[\@digit@]%
+    % look for  1, 2, 6, 7
+    \ifcase\@digit@% 0
+    \or%\kern.03em% 1
+    \or\kern.04em% 2
+    \or%\kern-.01em% 3
+    \or%\kern.02em% 4
+    \or%\kern.01em% 5
+    \or\kern.01em% 6
+    \or\kern-.11em% 7
+     \or%\kern-.11em% 8
+    \or\kern-.02em% 9
+   \fi%
+%    \kern\zpl@foresolidus{\fontencoding{TS1}\selectfont\char"2F}%
+%    \kern\zpl@aftsolidus%
+    {\fontencoding{TS1}\selectfont\char"2F}%
+	\StrLeft{#3}{1}[\@digit@]%
+    % look for 1, 4, 7
+    \ifcase\@digit@% 0
+    \or%\kern -.02em% 1
+    \or% 2
+    \or% 3
+    \or\kern -.05em% 4
+    \or% 5
+    \or\kern-.02em% 6
+    \or\kern .01em% 7
+    \fi%
+    {\destyle #3}%       denominator [#3]
+  }%mbox
+} % textfrac
+\fi
+
+%\let\orig@footnote=\thefootnote
+%\let\orig@makefnmark=\@makefnmark
+\def\bfseries@rm{b}
+\def\mdseries@rm{m}
+\def\useosf{\zpl@liningfalse}
+\@onlypreamble\useosf
+\def\useproportional{\zpl@tabularfalse}
+\@onlypreamble\useproportional
+
+%\traceon
+\ifzpl@otf
+  \def\zpl@dflt{}
+  \ifzpl@zeroslash\edef\zpl@dflt{Numbers = SlashedZero , 
+  }\fi
+  \if T\zpl@nospc
+    \if F\zpl@noti\def\zpl@spcmag{{1,.625,1}}\def\zpl@nospc{F}\fi
+    \if F\zpl@nolo\def\zpl@spcmag{{1.2,1,1}}\def\zpl@nospc{F}\fi  
+  \fi
+  \if F\zpl@nospc
+  	\edef\zpl@dflt{\zpl@dflt WordSpace = \zpl@spcmag ,
+	}
+  \fi
+  \def\zpl@scraw{pcap}
+  \ifzpl@largesc\def\zpl@scraw{smcp}\fi
+  
+ %\zpl@cnt will be 0..2^8-1 
+  \edef\zpl@lst{}
+  \ifnum\zpl@cnt>127 \edef\zpl@lst{8}\advance\zpl@cnt -128 \fi
+  \ifnum\zpl@cnt>63 \edef\zpl@lst{7,\zpl@lst}\advance\zpl@cnt -64 \fi
+  \ifnum\zpl@cnt>31 \edef\zpl@lst{6,\zpl@lst}\advance\zpl@cnt -32 \fi
+  \ifnum\zpl@cnt>15 \edef\zpl@lst{5,\zpl@lst}\advance\zpl@cnt -16 \fi
+  \ifnum\zpl@cnt>7 \edef\zpl@lst{4,\zpl@lst}\advance\zpl@cnt -8 \fi
+  \ifnum\zpl@cnt>3 \edef\zpl@lst{3,\zpl@lst}\advance\zpl@cnt -4 \fi
+  \ifnum\zpl@cnt>1 \edef\zpl@lst{2,\zpl@lst}\advance\zpl@cnt -2 \fi
+  \ifnum\zpl@cnt>0 \edef\zpl@lst{1,\zpl@lst}\fi
+  \ifthenelse{\not\equal{\zpl@lst}{}}
+	{\edef\zpl@dflt{\zpl@dflt StylisticSet={\zpl@lst} , 
+	}}{}
+  
+   \defaultfontfeatures[\zpl@base]{
+     Ligatures = TeX ,
+	Scale = \zpl@scale ,
+     Extension = .otf ,
+     SmallCapsFeatures={\ifzpl@scosf Numbers = OldStyle ,
+     \fi RawFeature = +\zpl@scraw } ,
+     \ifluatex Renderer=Basic , \fi 
+     \zpl@dflt ,
+     RawFeature=-ss05 ,   
+     \zpl@defaultfeatures    
+    }
+    
+\else % type1
+  \def\zpl@spacing{%
+	\fontdimen2\font=\zpl@spc
+	\fontdimen3\font=\zpl@stretch
+	\fontdimen4\font=\zpl@shrink}
+  \@tempdima=\zpl@scale\p@\@tempdima=\zpl@helvratio\@tempdima%
+  \edef\qhv@scale{\strip@pt\@tempdima}
+  \def\zpl@scaled{s*[\zpl@scale]}% used in fd files
+
+
+    \DeclareRobustCommand{\lfstyle}{%
+      \not@math@alphabet\lfstyle\relax
+      \fontfamily{zpllf}\selectfont %
+    }
+    \DeclareRobustCommand{\tlfstyle}{%
+      \not@math@alphabet\tlfstyle\relax
+      \fontfamily{zpltlf}\selectfont %
+    }
+    \DeclareRobustCommand{\osfstyle}{%
+      \not@math@alphabet\osfstyle\relax
+      \fontfamily{zplosf}\selectfont %
+    }
+    \DeclareRobustCommand{\tosfstyle}{%
+      \not@math@alphabet\tosfstyle\relax
+      \fontfamily{zpltosf}\selectfont %
+    }    
+    \ifzpl@defaultsups %
+    \else\fi
+%      \ExplSyntaxOn
+%	  \DeclareDocumentCommand \fakesuperscript {m} {
+%      \@textsuperscript{\selectfont#1}
+%	  }
+%	  \RenewDocumentCommand \textsuperscript {s} {
+%      \IfBooleanTF #1 \fakesuperscript \realsuperscript
+%	  }
+%	  \DeclareDocumentCommand \realsuperscript {m} {
+%	    \hbox_set:Nn \l_tmpa_box {{\sustyle#1}}
+%		\box_scale:Nnn \l_tmpa_box { \zplsups@scalefactor } { \zplsups@scalefactor } 
+%	    \hbox_set:Nn \l_tmpa_box
+%      { \box_move_up:nn \zplsups@raised {\box_use:N \l_tmpa_box} }
+%	    \hspace*{\zplsups@Lspaced}{\color{\zplsups@color}%
+%	    \box_use:N \l_tmpa_box} \hspace*{\zplsups@Rspaced}}%  
+%	
+%
+%	\cs_set:Npn \@makefnmark {
+%		\mbox{%
+%		\footnotemarkfont\textsuperscript{\@thefnmark}}
+%	  }
+%	\cs_if_exist:NTF \ftntm@font % will exist only for KOMA
+%	  {
+%	\cs_new:Npn \footnotemarkfont {\normalfont \ftntm@font}
+%	  }
+%	  {
+%	\cs_new:Npn \footnotemarkfont {\normalfont}
+%	  }
+%    \ExplSyntaxOff
+%    \patchcmd{\maketitle}{\@textsuperscript{\normalfont\@thefnmark}}{\normalfont{\textsuperscript\@thefnmark}}{}{}
+%    \patchcmd{\maketitle}{\@textsuperscript{\normalfont\@thefnmark}}{\normalfont{\textsuperscript\@thefnmark}}{}{}
+%%    \patchcmd{\maketitle}     
+%%{\hb@xt@1.8em}{\hb@xt@2.18em}{}{}
+%   \ifzpl@KOMA
+%      \setkomafont{footnotereference}{\normalfont\sustyle}
+%      \setkomafont{footnotelabel}{\normalfont\sustyle}
+%   \fi
+%  \fi
+ %      \ifzpl@KOMA
+%      	\let\textsuperscript\sustyle
+%        \setkomafont{footnotelabel}{\textsuperscript}
+%        \setkomafont{footnotereference}{\textsuperscript}
+%      \else % NOT KOMA
+%        \def\f@@tn@te{footnote}
+%        \def\@makefnmark{%
+%          \ifx\@mpfn\f@@tn@te%
+%            \ifx\thefootnote\orig@footnote%
+%              \hbox{\sustyle\hspace*{.05em}\@thefnmark\hspace*{.05em}}%
+%            \else%
+%              \orig@makefnmark%
+%            \fi
+%          \else%
+%            \orig@makefnmark%
+%          \fi}%
+%        \fi
+%    \fi
+%  \ifzpl@helv\renewcommand*{\sfdefault}{qhv}\fi
+%  \renewcommand*{\ttdefault}{npxtt}
+  \DeclareRobustCommand\thfamily % new family for theorem font
+        {\not@math@alphabet\thfamily\relax
+         \fontfamily\thdefault\selectfont}
+  \DeclareRobustCommand{\textth}[1]{%
+    {\thfamily #1}%
+  }
+  \let\textthit\textth
+
+\fi % type1
+
+\ifzpl@thrm
+	%\RequirePackage{amsmath,amsthm} % in case of theoremfont
+	\ifdefined\newtheoremstyle %amsthm and ntheorem, not theorem.sty
+		\@ifpackageloaded{ntheorem}\relax{%
+		\newtheoremstyle{plain}
+		{\medskipamount}   % ABOVESPACE, was \topsep
+    	{\medskipamount}   % BELOWSPACE, was \topsep
+    	{\thfamily}  % BODYFONT--\thfamily is italic with upright figures and punctuation
+    	{}       % INDENT (empty value is the same as 0pt)
+    	{\bfseries} % HEADFONT--you may want to add \tlfstyle so the number is tab lining, regardless of text figure selection
+    	{.}         % HEADPUNCT
+    	{5pt plus 1pt minus 1pt} % HEADSPACE
+    	{}          % CUSTOM-HEAD-SPEC\newtheorem{thm}{Theorem}[section]
+    	} % end @ifpackageloaded
+    \fi%
+\fi%}		
+
+\iftutex
+%	\def\zpl@nft{\if t\zpl@thmtab Monospaced%
+%	\else Proportional\fi}
+%\DeclareTextFontCommand{\textsl}{\slshape}
+    \DeclareTextFontCommand{%
+      \osfstyle}{\addfontfeatures{Numbers={Proportional,OldStyle}}}
+   \DeclareTextFontCommand{%
+      \tosfstyle}{\addfontfeatures{Numbers={Tabular,OldStyle}}}
+   \DeclareTextFontCommand{%
+      \tlfstyle}{\addfontfeatures{Numbers={Tabular,Lining}}}
+   \DeclareTextFontCommand{%
+      \lfstyle}{\addfontfeatures{Numbers={Proportional,Lining}}}
+
+   \DeclareRobustCommand{\destyle}{%
+      \not@math@alphabet\destyle\relax
+      \addfontfeatures{VerticalPosition=Denominator}%
+    }
+   \DeclareRobustCommand{\nustyle}{%
+      \not@math@alphabet\nustyle\relax
+      \addfontfeatures{VerticalPosition=Numerator}%
+    }
+   \DeclareRobustCommand{\sustyle}{%
+      \not@math@alphabet\sustyle\relax
+      \addfontfeatures{VerticalPosition=Superior}%
+    }
+   \DeclareRobustCommand{\infstyle}{%
+      \not@math@alphabet\infstyle\relax
+      \addfontfeatures{VerticalPosition=Inferior}%
+    }
+   \let\instyle\infstyle
+   \let\sufigures\sustyle
+   \let\nufigures\nustyle
+   \let\infigures\infstyle
+   \let\defigures\destyle
+
+   \ifzpl@defaultsups %
+   \else\fi
+%    \RequirePackage{realscripts}
+%    \ExplSyntaxOn
+%	\DeclareDocumentCommand \imagsuperscript {m} {
+%  \fontspec_if_fontspec_font:TF
+%  {
+%    \fontspec_if_opentype:TF
+%    { \fontspec_if_feature:nTF {+sups}
+%      { {\addfontfeature{VerticalPosition=Superior}#1} }
+%      { \fakesuperscript{#1} }
+%    }
+%    { \fontspec_if_aat_feature:nnTF {10} {1}
+%      { {\addfontfeature{VerticalPosition=Superior}#1} }
+%      { \fakesuperscript{#1} }
+%    }
+%  }
+%  { \fakesuperscript{#1} }
+%}
+%
+%	\RenewDocumentCommand \realsuperscript {m} {
+%	    \hbox_set:Nn \l_tmpa_box {\imagsuperscript{#1}}
+%		\box_scale:Nnn \l_tmpa_box { \zplsups@scalefactor } { \zplsups@scalefactor } 
+%	    \hbox_set:Nn \l_tmpa_box
+%    { \box_move_up:nn \zplsups@raised {\box_use:N \l_tmpa_box} }
+%	    \hspace*{\zplsups@Lspaced}
+%	    {\color{\zplsups@color}%
+%	    \box_use:N \l_tmpa_box }%
+%	    \hspace*{\zplsups@Rspaced}}
+%	    	  
+%        \ExplSyntaxOff
+%        
+%        \patchcmd{\maketitle}{\@textsuperscript{\normalfont\@thefnmark}}{\normalfont{\textsuperscript\@thefnmark}}{}{}
+%     \patchcmd{\maketitle}{\@textsuperscript{\normalfont\@thefnmark}}{\normalfont{\textsuperscript\@thefnmark}}{}{}
+%%        \patchcmd{\maketitle}     
+%%{\hb@xt@1.8em}{\hb@xt@2.18em}{}{}
+%   \ifzpl@KOMA
+%      \setkomafont{footnotereference}{\normalfont\sustyle}
+%      \setkomafont{footnotelabel}{\normalfont\sustyle}
+%   \fi 
+%  \fi
+
+    \renewcommand*{\textcircled}[1]{\hmode@bgroup\ooalign{%
+    \hfil \raise -.255ex\hbox{{%
+    \normalfont\addfontfeatures{Numbers={Monospaced, Lining}}%
+    \scalefont{.8}{\sustyle#1}}}% end hbox
+    \hfil \crcr \symbol{"25EF}}%
+    \egroup}
+\else % type1
+    \renewcommand*{\textcircled}[1]{\hmode@bgroup\ooalign{%
+    \hfil \raise -.15ex\hbox{{%
+    \normalfont
+    {\scalefont{.8}\sustyle#1}}}% end hbox
+    \hfil \crcr \textbigcircle}%
+    \egroup}
+\fi
+
+% applies to both
+\DeclareRobustCommand{\textlf}[1]{%
+  {\lfstyle #1}%
+}
+\DeclareRobustCommand{\texttlf}[1]{%
+  {\tlfstyle #1}%
+}
+\DeclareRobustCommand{\textosf}[1]{%
+  {\osfstyle #1}%
+}
+\DeclareRobustCommand{\texttosf}[1]{%
+  {\tosfstyle #1}%
+}
+\DeclareTextFontCommand{\textsu}{\sustyle}
+    \let\textsup\textsu
+   \let\textsups\textsu
+\DeclareTextFontCommand{\textnumerator}{\nustyle}
+    \ifzpl@notextnu\else\let\textnu=\textnumerator\fi
+    \let\textnum\textnumerator
+\DeclareTextFontCommand{\textde}{\destyle}
+    \let\textdenominator\textde
+\DeclareTextFontCommand{\textinf}{\infstyle}
+    \let\textinferior\textinf
+    \let\textsub\textinf
+    
+\newdimen\zpl@sixem\zpl@sixem6pt % for checking if a number refers to ex
+\newdimen\zpl@y \newdimen\zpl@x 
+
+% convert numerical entry that may be multiple of ex (<6) or em value
+\def\zpl@toex#1{\zpl@x#1pt \ifdim\zpl@x<\z@\zpl@y-\zpl@x\else\zpl@y\zpl@x\fi \ifdim\zpl@y>\zpl@sixem \zpl@x\dimexpr
+ 1pt * (\dimexpr #1pt\relax) / \dimexpr \zpl@xht pt\relax\relax\fi}
+
+\newdimen\zpl@tmpdima \newdimen\zpl@tmpdimb  \newdimen\zpl@tmpdimc
+\newdimen\zpl@tmpdimd \newdimen\zpl@tmpdime \newdimen\zpl@tmpdimf
+\newdimen\zpl@dimA
+\newdimen\zpl@dimAA \newdimen\zpl@dimB \newdimen\zpl@dimBB 
+\newdimen\zpl@dimC % vertical center
+% double cap letters for below bar, single cap for above
+
+\zpl@toex\zpl@sfrVC\zpl@dimC\zpl@x %Vertical center of fraction
+\zpl@toex\zpl@sfrTH\zpl@tmpdimb\zpl@x % bar thickness
+\zpl@tmpdime.5\zpl@tmpdimb % half bar thickness
+\zpl@toex\zpl@sfrVS\zpl@tmpdimc\zpl@x% vertical space
+\zpl@toex\zpl@deht\zpl@tmpdimd\zpl@x % height of unscaled figures
+\zpl@tmpdimd\zpl@sfrSC\zpl@tmpdimd % height of scaled figures
+\zpl@toex\zpl@debase\zpl@tmpdimf\zpl@x % unscaled baseline of de figures
+\zpl@toex\zpl@nubase\zpl@tmpdima\zpl@x % unscaled baseline of nu figures
+\zpl@tmpdima\zpl@sfrSC\zpl@tmpdima % scaled nu baseline
+\zpl@tmpdimf\zpl@sfrSC\zpl@tmpdimf % scaled de baseline
+\zpl@dimA\zpl@dimC
+\advance\zpl@dimA by \zpl@tmpdime % top of bar
+\zpl@dimAA\zpl@dimC
+\advance\zpl@dimAA by -\zpl@tmpdime % bottom of bar
+\zpl@dimB\zpl@dimA
+\advance\zpl@dimB by \zpl@tmpdimc % top figure baseline
+\advance\zpl@dimB by -\zpl@tmpdima
+\zpl@dimBB\zpl@dimAA
+\advance\zpl@dimBB by -\zpl@tmpdimc % 
+\advance\zpl@dimBB by -\zpl@tmpdimd % bottom figure baseline
+\advance\zpl@dimBB by -\zpl@tmpdimf
+\newcommand*{\textsfrac}[3][]{% like \textsfrac[1]{23}{34}
+\mbox{%
+    \ifthenelse{\not\equal{#1}{}}%Test for integer portion [optional #1]
+      {\textlf{#1}\kern.12em}{}%         
+	{\hmode@bgroup%
+\ooalign{%
+	\setbox0=\hbox{\scalefont{\zpl@sfrSC}\nustyle#2}%
+	\hfil \raise\strip@pt\zpl@dimB ex\box0\hfil \crcr%
+	\leaders\hrule height \strip@pt\zpl@dimA ex depth -\strip@pt\zpl@dimAA ex\hfill \crcr%
+	\setbox1=\hbox{\scalefont{\zpl@sfrSC}\destyle#3}%
+	\hfil\raise\strip@pt\zpl@dimBB ex\box1\hfil}%
+\egroup}}
+}
+
+\AtEndPreamble{%
+\ifzpl@otf
+  \ifzpl@lining
+    \def\zpl@figurestyle{Lining}
+  \else
+    \def\zpl@figurestyle{OldStyle}
+  \fi
+  \ifzpl@tabular
+    \def\zpl@figurealign{Monospaced} 
+  \else
+    \def\zpl@figurealign{Proportional} 
+  \fi
+  \setmainfont
+          [ Numbers = {\zpl@figurealign,\zpl@figurestyle},
+          ] {\zpl@base}
+  \let\zpl@sty\zpl@figurestyle
+  \if l\zpl@thmlin\def\zpl@sty{Lining}\fi
+  \newcommand{\thfamily}%{\@nameuse{zpl\zpl@figurestyle}%
+    {\addfontfeatures{%
+    Numbers={\zpl@figurealign,\zpl@sty} ,
+    RawFeature=+ss05}
+    \itshape} % for theorems
+    \ifzpl@sl\else\let\slshape=\thfamily\fi
+    
+
+\else % type1
+  \ifzpl@lining
+    \def\zpl@figurestyle{lf} 
+  \else
+    \def\zpl@figurestyle{osf} 
+  \fi
+  \ifzpl@tabular
+    \def\zpl@figurealign{t} 
+  \else
+    \def\zpl@figurealign{} 
+  \fi
+
+  \renewcommand*{\rmdefault}{zpl\zpl@figurealign%
+  \zpl@figurestyle}
+
+  \ifthenelse{\equal{\familydefault}{\sfdefault} \OR
+  \equal{\familydefault}{\ttdefault}}%
+  {}{\renewcommand{\familydefault}{\rmdefault}}
+
+
+  %\ifzpl@scosf %
+  %\DeclareRobustCommand{\textsc}[1]{%
+  %{\fontfamily{zpl\zpl@figurealign osf}\scshape\selectfont #1}%
+  %}\fi% use osf in small caps
+
+  \def\zpl@thfigurestyle{\zpl@figurestyle}
+  \ifx\zpl@figurestyle\zpl@dfltfigurestyle
+    \def\zpl@thfigurestyle{tlf}
+  \else
+    \def\zpl@thfigurestyle{osf}
+  \fi % there just two possible figure styles for the theorem font
+  \newcommand*{\thdefault}{zplth-\zpl@thfigurestyle}
+  \normalfont
+\fi % type1
+
+% both
+\ifzpl@KOMA
+	\@ifpackageloaded{AB@authnote}{%
+        \renewcommand\AB@authnote[1]{\textsu{#1}}
+        \renewcommand\AB@affilnote[1]{\textsu{#1}}
+    }
+\fi
+%both
+\ifzpl@thrm
+    \@ifundefined{theoremstyle}{}{
+    	\theoremstyle{plain}
+    	\patchcmd{\th@plain}{\itshape}{\thfamily}{\message{Replaced itshape by thfamily in theorem style plain.}}{\message{Unable to replace itshape by thfamily in theorem style plain.}}
+}
+\fi 
+}
+
+% Define \oldstylenums, \liningnums ,\tabularnums and \proportionalnums
+\ifzpl@otf
+    \DeclareTextFontCommand{%
+      \oldstylenums}{\addfontfeatures{Numbers=OldStyle}}
+    \DeclareTextFontCommand{%
+      \liningnums}{\addfontfeatures{Numbers=Lining}}
+    \DeclareTextFontCommand{%
+      \tabularnums}{\addfontfeatures{Numbers=Tabular}}
+    \DeclareTextFontCommand{%
+      \proportionalnums}{\addfontfeatures{Numbers=Proportional}}
+\else % type1
+    \DeclareTextFontCommand{%
+      \oldstylenums}{\fontfamily{zpl\zpl@figurealign osf}\selectfont }
+    \DeclareTextFontCommand{%
+      \liningnums}{\fontfamily{zpl\zpl@figurealign lf}\selectfont }
+    \DeclareTextFontCommand{%
+      \tabularnums}{\fontfamily{zplt\zpl@figurestyle}\selectfont }
+    \DeclareTextFontCommand{%
+      \proportionalnums}{\fontfamily{zpl\zpl@figurestyle}\selectfont }
+	\re@DeclareTextSymbol{\textdollar}{OT1}{36}
+	\DeclareFontFamilySubstitution{\encodingdefault}{zplLF}{zpllf}
+	\DeclareFontFamilySubstitution{\encodingdefault}{zplTLF}{zpltlf}
+	\DeclareFontFamilySubstitution{\encodingdefault}{zplOsF}{zplosf}
+	\DeclareFontFamilySubstitution{\encodingdefault}{zplTOsF}{zpltosf}
+\fi
+
+\endinput
+

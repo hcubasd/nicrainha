@@ -1,0 +1,25 @@
+% Font catalog coverage: scripts/texbundle.mjs compiles this once per family
+% in fonts.json, its preamble in place of the placeholder below, and serves the
+% files it reads from public/tex/files, fetched when a deck uses them.
+\documentclass{nicrainha}
+PREAMBLE
+\title{Title}\author{Author}\date{Date}
+\begin{document}
+\maketitle
+\begin{slide}{Text}
+  \newcommand\sample{Upright \textit{italic} \textsl{slanted} \textbf{bold
+    \textit{bold italic}} \textsc{Small Caps} 0123456789 fi fl ff ffi
+    ``quotes'' -- --- é ü ñ ç ø å ß \S\ \dag\ \textbullet\ \texteuro\
+    \texttt{mono \textbf{bold} \textit{italic}}}
+  {\tiny\sample} {\small\sample} {\normalsize\sample} {\Large\sample} {\Huge\sample}
+  {\rmfamily\sample} {\sffamily\sample}
+\end{slide}
+\begin{slide}{Math}
+  \newcommand\symbols{x y\, \alpha\beta\Gamma\, \sum_i \int \infty \le \cdot \ast
+    \gtrsim \square \mathbb{R}\mathcal{L}\mathfrak{g}\mathbf{v}
+    \boldsymbol{\alpha} \left(\tfrac{1}{2}\right) 0123456789}
+  \newcommand\sample{$\symbols \scriptstyle\symbols \scriptscriptstyle\symbols$}
+  {\tiny\sample} {\small\sample} {\normalsize\sample} {\Large\sample} {\Huge\sample}
+  {\boldmath\sample}
+\end{slide}
+\end{document}

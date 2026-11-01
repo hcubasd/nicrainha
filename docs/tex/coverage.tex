@@ -1,0 +1,103 @@
+% Everything a deck can use: scripts/texbundle.mjs compiles this and ships
+% exactly the files TeX reads. Add here whatever the class should support.
+\documentclass{nicrainha}
+\title{Coverage}
+\author{nicrainha}
+\date{\today}
+\begin{document}
+\maketitle
+
+\begin{slide}{Text}
+  Upright, \textit{italic}, \textsl{slanted}, \textbf{bold},
+  \textbf{\textit{bold italic}}, \texttt{typewriter},
+  \textbf{\texttt{bold typewriter}}, \textit{\texttt{italic typewriter}},
+  \textrm{roman \textit{italic} \textbf{bold \textit{italic}} \textsc{caps}}.
+  Ligatures fi fl ff, quotes ``a'' `b', dashes -- ---, accents é ü ñ ç ø å ß,
+  symbols \S\ \P\ \dag\ \ddag\ \textbullet\ \textregistered\ \texttrademark\
+  \copyright\ \textdegree\ \texteuro\ \pounds\ \textcelsius.
+
+  {\tiny tiny} {\scriptsize scriptsize} {\footnotesize footnotesize}
+  {\small small} {\normalsize normalsize} {\large large} {\Large Large}
+  {\LARGE LARGE} {\huge huge} {\Huge Huge}
+
+  {\tiny\bfseries tiny} {\scriptsize\bfseries scriptsize}
+  {\footnotesize\bfseries footnotesize} {\small\bfseries small}
+  {\Large\bfseries Large} {\huge\bfseries huge} {\Huge\bfseries Huge}
+  {\tiny\itshape tiny} {\small\itshape small} {\Large\itshape Large}
+  {\tiny\ttfamily tiny} {\small\ttfamily small} {\Large\ttfamily Large}
+  {\tiny\rmfamily tiny} {\small\rmfamily small} {\Large\rmfamily Large}\footnote{A footnote.}
+\end{slide}
+
+\begin{slide}{Lists}
+  \begin{itemize}
+    \item One \begin{itemize} \item Two \begin{itemize} \item Three
+      \begin{itemize} \item Four \end{itemize} \end{itemize} \end{itemize}
+  \end{itemize}
+  \begin{enumerate}
+    \item One \begin{enumerate} \item Two \begin{enumerate} \item Three
+      \begin{enumerate} \item Four \end{enumerate} \end{enumerate} \end{enumerate}
+  \end{enumerate}
+  \begin{description} \item[Term] Description. \end{description}
+  \section{Section} \subsection{Subsection} \subsubsection{Subsubsection}
+  \paragraph{Paragraph} \textbf{Bold paragraph}
+\end{slide}
+
+\begin{slide}{Math}
+  $\alpha\beta\gamma\Gamma\Delta\Omega \sum_{i=1}^n \int_0^\infty \prod \oint
+  \sqrt[3]{x} \frac{a}{b} \binom{n}{k} \lim_{x\to0} \partial \nabla \infty
+  \leq \geq \neq \approx \equiv \sim \propto \in \notin \subset \cup \cap
+  \forall \exists \to \Rightarrow \Leftrightarrow \mapsto \cdot \times \pm$
+  $\mathbb{R}\mathbb{N}\mathcal{L}\mathfrak{g}\mathrm{d}\mathbf{x}\mathit{if}
+  \mathsf{A}\mathtt{B}\boldsymbol{\alpha}\boldsymbol{x}\bigl(\Bigl(\biggl(\Biggl(
+  \hat{x}\tilde{y}\bar{z}\vec{v}\dot{a}\ddot{b}\widehat{xy}\overline{ab}
+  \underbrace{abc}_{n}\overbrace{abc}^{m}$
+  \begin{align}
+    f(x) &= \sum_{k=0}^{\infty} \frac{f^{(k)}(0)}{k!} x^k
+      \quad \left[ \int_{-\infty}^{\infty} e^{-x^2}\,dx \right]^{\frac{1}{2}} \\
+    A &= \begin{pmatrix} a & b \\ c & d \end{pmatrix}
+      \begin{bmatrix} 1 \\ 2 \end{bmatrix}
+      \begin{vmatrix} x & y \\ z & w \end{vmatrix}
+      \begin{cases} 1 & x > 0 \\ 0 & \text{otherwise} \end{cases}
+  \end{align}
+  {\small $\sum_a^b \int_a^b \mathbb{R}$} {\footnotesize $\sum_a^b \mathbb{R}$}
+  {\tiny $\sum_a^b \mathbb{R}$} {\Large $\sum_a^b \mathbb{R}$}
+  {\Huge $\sum_a^b \mathbb{R} \boldsymbol{\alpha}$}
+  \textbf{\boldmath $\alpha x \sum \mathbb{R}$}
+\end{slide}
+
+\begin{slide}{Math in every size}
+  % Each size uses its own optical sizes of the math fonts, in text, script
+  % and scriptscript styles: one symbol or more from every math font (Latin
+  % Modern's letters, symbols and large operators; AMS's symbol fonts A and B;
+  % Fraktur), in all three.
+  \newcommand\symbols{x\, \alpha\beta\, \sum_i \int \infty \le \cdot \ast
+    \gtrsim \lesssim \square \blacktriangle \nexists \varnothing
+    \mathbb{R}\mathcal{L}\mathfrak{g}\mathbf{v} \boldsymbol{\alpha} \left(\tfrac{1}{2}\right)}
+  \newcommand\sample{$\symbols \scriptstyle\symbols \scriptscriptstyle\symbols$}
+  {\tiny\sample} {\scriptsize\sample} {\footnotesize\sample} {\small\sample}
+  {\normalsize\sample} {\large\sample} {\Large\sample} {\LARGE\sample}
+  {\huge\sample} {\Huge\sample}
+  {\tiny\bfseries\boldmath\sample} {\scriptsize\boldmath\sample}
+  {\small\boldmath\sample} {\Large\boldmath\sample}
+\end{slide}
+
+\begin{slide}{Tables}
+  \begin{table}
+    \begin{tabular}{lcr}
+      \toprule
+      Left & Center & Right \\
+      \midrule
+      a & b & c \\
+      \cmidrule(lr){1-2}
+      \multicolumn{2}{c}{both} & d \\
+      \bottomrule
+    \end{tabular}
+    \caption{A caption.}
+  \end{table}
+  \begin{tabular}{|p{3cm}|l|}
+    \hline
+    A paragraph column & x \\
+    \hline
+  \end{tabular}
+\end{slide}
+\end{document}

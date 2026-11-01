@@ -8,9 +8,12 @@
 		"preview": "vite preview --host 0.0.0.0"
 	},
 	"dependencies": {
-		"nicrainha": "^1.0.0"
+		"nicrainha": "^1.1.0",
+		"pdf-lib": "^1.17.1",
+		"pdfjs-dist": "^6.4.299"
 	},
 	"devDependencies": {
+		"playwright": "^1.63.0",
 		"vite": "^8.3.1"
 	}
 }
