@@ -165,6 +165,7 @@ describe("elements", () => {
 	it("import without a DOM and register nothing", () => {
 		expect(typeof NicrainhaBackground).toBe("function");
 		expect(typeof NicrainhaGlass).toBe("function");
+		expect(typeof NicrainhaBackground.prototype.capture).toBe("function");
 		expect(globalThis.customElements).toBeUndefined();
 	});
 });

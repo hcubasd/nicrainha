@@ -45,6 +45,7 @@ export class NicrainhaBackground extends Base {
 	#lastPanels = "";
 	#reducedMotion = globalThis.matchMedia?.("(prefers-reduced-motion: reduce)");
 	#resizeObserver: ResizeObserver | null = null;
+	#ready: Promise<void> | null = null; // the renderer, once it has loaded
 
 	constructor() {
 		super();
@@ -229,6 +230,40 @@ export class NicrainhaBackground extends Base {
 		}
 	}
 
+	// ── Capture ─────────────────────────────────────────────────────────────
+
+	// The background as it is now, glass and all, as a PNG: one pixel per
+	// device pixel, every one exactly a nicrainha color. The UI on it isn't
+	// included. Resolves once the renderer has loaded; rejects when the
+	// element isn't in the page.
+	async capture(): Promise<Blob> {
+		if (!this.#ready) throw new Error("A background must be in the page to capture it.");
+		await this.#ready;
+		// One pixel per device pixel of the background's box, now: a
+		// background just added may not have been measured yet.
+		const box = this.#canvas.getBoundingClientRect();
+		const width = Math.round(box.width * devicePixelRatio);
+		const height = Math.round(box.height * devicePixelRatio);
+		if (this.#canvas.width !== width) this.#canvas.width = width;
+		if (this.#canvas.height !== height) this.#canvas.height = height;
+		let canvas = this.#canvas;
+		if (this.#renderer) {
+			// The drawing is only readable until the frame is shown: draw it
+			// again and take it now. toBlob copies the pixels when called.
+			this.#renderer.draw(this.#panels(), 0);
+		} else {
+			canvas = document.createElement("canvas");
+			canvas.width = this.#canvas.width;
+			canvas.height = this.#canvas.height;
+			const context = canvas.getContext("2d")!;
+			context.fillStyle = this.style.background;
+			context.fillRect(0, 0, canvas.width, canvas.height);
+		}
+		return new Promise((resolve, reject) =>
+			canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("The capture failed."))), "image/png"),
+		);
+	}
+
 	// ── Lifecycle ───────────────────────────────────────────────────────────
 
 	connectedCallback(): void {
@@ -239,7 +274,7 @@ export class NicrainhaBackground extends Base {
 		this.addEventListener("wheel", this.#onWheel, { passive: false });
 		this.#observeSize();
 		this.#fallback();
-		import("./renderer.js").then(({ createRenderer }) => {
+		this.#ready = import("./renderer.js").then(({ createRenderer }) => {
 			if (!this.isConnected || this.#renderer) return;
 			this.#renderer = createRenderer(this.#canvas, this.lightness);
 			this.#fallback();
@@ -258,6 +293,7 @@ export class NicrainhaBackground extends Base {
 		cancelAnimationFrame(this.#frame);
 		this.#renderer?.dispose();
 		this.#renderer = null;
+		this.#ready = null;
 	}
 
 	// Without WebGL2, the background is one nicrainha color at its lightness.

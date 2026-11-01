@@ -107,7 +107,7 @@ is a single nicrainha color at its lightness.
 An animated nicrainha background filling the viewport, behind its children.
 Its children are your UI, on an endless plane that pans in every direction.
 The background itself stays in place while the UI pans over it. Use one per
-page.
+page for your UI.
 
 | Attribute | Default | |
 | --- | --- | --- |
@@ -136,6 +136,22 @@ editable content don't start a pan.
 A segue is your own code: for example, `background.scrollTo({ left: 2000,
 top: 0, behavior: "smooth" })` brings the view placed at `left: 2000px` into
 the window.
+
+**Capturing.** `capture()` resolves to the background as it is now, glass and
+all, as a PNG `Blob`: one pixel per device pixel of the element's box, every
+one exactly a nicrainha color. Your UI on it isn't included. It waits for the
+renderer to load, and rejects when the element isn't in the page. For an image
+of a given size, add a background sized to it, for example out of view:
+
+```js
+const background = document.createElement("nicrainha-background");
+background.style.cssText = `inset: auto; left: -10000px; width: ${1920 / devicePixelRatio}px; height: ${1080 / devicePixelRatio}px`;
+document.body.append(background);
+const png = await background.capture(); // 1920 × 1080
+background.remove();
+```
+
+Each background starts from its own random noise, like a page load.
 
 ### `<nicrainha-glass>`
 
