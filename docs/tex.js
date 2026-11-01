@@ -132,8 +132,11 @@ export function report(log) {
 			// A warning runs on until a blank line, its continuations indented.
 			let text = line;
 			while (lines[i + 1]?.trim() && /^\s|^\(/.test(lines[i + 1])) text += ` ${lines[++i].trim()}`;
-			// filecontents writing its file is the compile's business, not the deck's.
-			if (!/Writing or overwriting file|already exists on the system/.test(text)) warnings.push(text.replace(/\s+/g, " "));
+			// filecontents writing its file, and the browser having no shell, are
+			// the compile's business, not the deck's.
+			if (!/Writing or overwriting file|already exists on the system|Shell escape feature is not enabled/.test(text)) {
+				warnings.push(text.replace(/\s+/g, " "));
+			}
 		}
 	}
 	return { errors, warnings };

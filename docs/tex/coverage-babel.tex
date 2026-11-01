@@ -1,0 +1,20 @@
+% Language coverage: scripts/texbundle.mjs compiles this and ships the files
+% TeX reads, so decks can \usepackage[brazil]{babel} (or english): its
+% hyphenation patterns are in the format, its words and dates here.
+\documentclass{nicrainha}
+\usepackage[english, brazil]{babel}
+\title{Apresentação}\author{Autora}\date{\today}
+\begin{document}
+\maketitle
+\begin{slide}{Português}
+  Atenção: não há exceção. À noite, é possível ouvir o pássaro na árvore,
+  inconstitucionalissimamente. \today.
+  \begin{table}\begin{tabular}{l}x\end{tabular}\caption{Tabela}\end{table}
+  \begin{figure}\caption{Figura}\end{figure}
+  \selectlanguage{english}\today. Hyphenation, internationalization.
+  \foreignlanguage{brazil}{Coração} \begin{otherlanguage}{english}Text\end{otherlanguage}
+\end{slide}
+\begin{slide}{Referências}
+  \begin{thebibliography}{9}\bibitem{x} Fulano. Título. 2026.\end{thebibliography}
+\end{slide}
+\end{document}

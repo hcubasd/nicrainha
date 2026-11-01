@@ -71,6 +71,9 @@ BibTeX bibliography. The class, `tex/nicrainha.cls`:
   packages can be loaded: the page only has the files these need.
 - **Fonts:** Latin Modern, sans by default, with serif and typewriter, and
   the catalog below.
+- **Languages:** text is UTF-8, accents and all. `\usepackage[brazil]{babel}`
+  (or `english`, or both) sets Portuguese hyphenation, words such as
+  "Tabela" and "Figura", and dates.
 - **Slides:** each `slide` is one page with its title in the top strip.
 - **Title slide:** `\maketitle` centers the title, author and date on the
   page, on a glass card fitted to their widest line. Long titles wrap at the

@@ -298,7 +298,8 @@ npm package.
 - **Decks** are one `.tex` file with the showcase's class, `nicrainha.cls`:
   beamer's 16:9 page, a `slide` environment, `\maketitle`. Everything else
   is plain LaTeX, with `amsmath`, `amssymb`, `booktabs`, `graphicx`,
-  `color`, TikZ, BibTeX and a catalog of 20 font families. The example is
+  `color`, TikZ, BibTeX, babel in Brazilian Portuguese and English, and a
+  catalog of 20 font families. The example is
   [`docs/tex/nicrainha.tex`](docs/tex/nicrainha.tex), on nicrainha's own
   color science.
 - **TeX** is pdfTeX compiled to WebAssembly (SwiftLaTeX), in a worker, with

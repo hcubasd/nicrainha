@@ -10,7 +10,8 @@
 //      pdfTeX that made it);
 //   2. compiles tex/coverage.tex with that format, recording every file TeX
 //      reads;
-//   3. does the same for TikZ, with tex/coverage-tikz.tex, and for BibTeX,
+//   3. does the same for TikZ, with tex/coverage-tikz.tex, for babel's
+//      languages, with tex/coverage-babel.tex, and for BibTeX,
 //      with tex/coverage-bib.tex in each of the standard bibliography styles;
 //   4. compiles tex/coverage-font.tex once per family in tex/fonts.json,
 //      and writes the files it reads beyond the bundle's to
@@ -122,6 +123,9 @@ try {
 	const tikz = await run("compilelatex", "main.tex", { "main.tex": readFileSync(join(root, "tex/coverage-tikz.tex"), "utf8") });
 	const tikzProblems = tikz.log.split("\n").filter((line) => /^(!|LaTeX Font Warning|Missing character)/.test(line));
 	if (tikz.status !== 0 || tikzProblems.length) throw new Error(`TikZ coverage failed:\n${tikzProblems.join("\n") || tikz.log}`);
+	const babel = await run("compilelatex", "main.tex", { "main.tex": readFileSync(join(root, "tex/coverage-babel.tex"), "utf8") });
+	const babelProblems = babel.log.split("\n").filter((line) => /^!|No hyphenation patterns/.test(line));
+	if (babel.status !== 0 || babelProblems.length) throw new Error(`Language coverage failed:\n${babelProblems.join("\n") || babel.log}`);
 	// BibTeX runs after each pass; one small deck per bibliography style
 	// records its .bst.
 	for (const style of BIBLIOGRAPHY_STYLES) {
